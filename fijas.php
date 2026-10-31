@@ -258,7 +258,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Action 5: Delete recurring transaction
+    // Action 5: Update recurring transaction
+    if ($action === 'update') {
+        $id         = filter_var($_POST['id'] ?? 0, FILTER_VALIDATE_INT);
+        $tipo       = trim($_POST['tipo'] ?? '');
+        $concepto   = trim($_POST['concepto'] ?? '');
+        $monto      = trim($_POST['monto'] ?? '');
+        $categoria  = trim($_POST['categoria'] ?? '');
+        $diaPago    = filter_var($_POST['dia_pago'] ?? 1, FILTER_VALIDATE_INT);
+        $metodoPago = trim($_POST['metodo_pago'] ?? 'debito');
+        $cuentaId   = filter_var($_POST['cuenta_id'] ?? 0, FILTER_VALIDATE_INT);
+        if ($cuentaId <= 0) {
+            $cuentaId = null;
+        }
+
+        $validMethods = ['debito', 'credito', 'transferencia', 'efectivo'];
+        if (!in_array($metodoPago, $validMethods, true)) {
+            $metodoPago = 'debito';
+        }
+
+        $errors = [];
+        if (!$id || empty($tipo) || empty($concepto) || $monto === '' || empty($categoria) || $diaPago === false) {
+            $errors[] = __('val_required_fields');
+        }
+        if (!in_array($tipo, ['income', 'expense'], true)) {
+            $errors[] = __('val_invalid_type');
+        }
+        if (!is_numeric($monto) || (float) $monto <= 0) {
+            $errors[] = __('val_invalid_amount');
+        }
+        if (mb_strlen($concepto) > 150) {
+            $errors[] = __('val_concept_len');
+        }
+        if (mb_strlen($categoria) > 50) {
+            $errors[] = __('val_category_len');
+        }
+        if ($diaPago < 1 || $diaPago > 31) {
+            $errors[] = __('val_invalid_day');
+        }
+
+        if (empty($errors)) {
+            try {
+                $amountFloat = round((float) $monto, 2);
+                $stmt = $pdo->prepare("
+                    UPDATE transacciones_fijas 
+                    SET tipo = :tipo, concepto = :concepto, monto = :monto, categoria = :categoria, 
+                        dia_pago = :dia_pago, metodo_pago = :metodo_pago, cuenta_id = :cuenta_id 
+                    WHERE id = :id
+                ");
+                $stmt->execute([
+                    ':tipo'        => $tipo,
+                    ':concepto'    => $concepto,
+                    ':monto'       => $amountFloat,
+                    ':categoria'   => $categoria,
+                    ':dia_pago'    => $diaPago,
+                    ':metodo_pago' => $metodoPago,
+                    ':cuenta_id'   => $cuentaId,
+                    ':id'          => $id
+                ]);
+
+                set_flash('success', __('msg_fixed_updated'));
+            } catch (PDOException $e) {
+                error_log("Error updating recurring transaction: " . $e->getMessage());
+                set_flash('danger', __('val_db_error'));
+            }
+        } else {
+            set_flash('danger', implode(' ', $errors));
+        }
+
+        header("Location: fijas.php");
+        exit;
+    }
+
+    // Action 6: Delete recurring transaction
     if ($action === 'delete') {
         $id = filter_var($_POST['id'] ?? 0, FILTER_VALIDATE_INT);
         if ($id && $id > 0) {
@@ -586,7 +658,25 @@ require_once __DIR__ . '/includes/header.php';
                                         <?php endif; ?>
                                     </form>
                                 </td>
-                                <td class="text-center pe-4">
+                                <td class="text-center pe-4 text-nowrap">
+                                    <button 
+                                        type="button" 
+                                        class="btn btn-sm btn-outline-primary border-0 rounded-circle me-1" 
+                                        style="width: 32px; height: 32px;" 
+                                        title="<?= htmlspecialchars(__('btn_edit')) ?>"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#editFixedModal"
+                                        data-id="<?= (int) $item['id'] ?>"
+                                        data-tipo="<?= htmlspecialchars($item['tipo']) ?>"
+                                        data-concepto="<?= htmlspecialchars($item['concepto'], ENT_QUOTES) ?>"
+                                        data-monto="<?= htmlspecialchars((string) $item['monto']) ?>"
+                                        data-dia="<?= (int) $item['dia_pago'] ?>"
+                                        data-metodo="<?= htmlspecialchars($item['metodo_pago'] ?? 'debito') ?>"
+                                        data-cuenta="<?= (int) ($item['cuenta_id'] ?? 0) ?>"
+                                        data-categoria="<?= htmlspecialchars($item['categoria'], ENT_QUOTES) ?>"
+                                    >
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
                                     <form method="POST" action="fijas.php" class="d-inline" onsubmit="return confirm('<?= htmlspecialchars(__('delete_confirm'), ENT_QUOTES) ?>');">
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
@@ -759,6 +849,175 @@ require_once __DIR__ . '/includes/header.php';
             </form>
         </div>
     </div>
+<!-- Modal: Edit Fixed Commitment / Subscription -->
+<div class="modal fade" id="editFixedModal" tabindex="-1" aria-labelledby="editFixedModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-3">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="icon-bubble icon-bubble-purple" style="width: 36px; height: 36px; font-size: 1.1rem;">
+                        <i class="bi bi-pencil-square"></i>
+                    </span>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0 text-slate-800" id="editFixedModalLabel"><?= htmlspecialchars(__('form_edit_fixed_title')) ?></h5>
+                        <small class="text-secondary"><?= htmlspecialchars(__('form_edit_fixed_subtitle')) ?></small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <form method="POST" action="fijas.php" novalidate>
+                <input type="hidden" name="action" value="update">
+                <input type="hidden" name="id" id="edit_fixed_id" value="">
+
+                <div class="modal-body p-4">
+                    <!-- Type (Income / Expense) -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_type')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <input type="radio" class="btn-check" name="tipo" id="edit_fixed_type_expense" value="expense">
+                                <label class="btn btn-outline-danger w-100 py-2 d-flex align-items-center justify-content-center gap-2 rounded-3" for="edit_fixed_type_expense">
+                                    <i class="bi bi-arrow-up-right"></i>
+                                    <span class="fw-semibold"><?= htmlspecialchars(__('type_expense')) ?></span>
+                                </label>
+                            </div>
+                            <div class="col-6">
+                                <input type="radio" class="btn-check" name="tipo" id="edit_fixed_type_income" value="income">
+                                <label class="btn btn-outline-success w-100 py-2 d-flex align-items-center justify-content-center gap-2 rounded-3" for="edit_fixed_type_income">
+                                    <i class="bi bi-arrow-down-left"></i>
+                                    <span class="fw-semibold"><?= htmlspecialchars(__('type_income')) ?></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Concept -->
+                    <div class="mb-3">
+                        <label for="edit_fixed_concepto" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_concept')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-secondary border-end-0">
+                                <i class="bi bi-card-text"></i>
+                            </span>
+                            <input type="text" class="form-control border-start-0 ps-0" id="edit_fixed_concepto" name="concepto" maxlength="150" required>
+                        </div>
+                    </div>
+
+                    <!-- Amount and Day of the Month -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label for="edit_fixed_monto" class="form-label fw-semibold small text-secondary">
+                                <?= htmlspecialchars(__('form_field_amount')) ?> <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-secondary border-end-0 fw-bold">$</span>
+                                <input type="number" step="0.01" min="0.01" class="form-control border-start-0 ps-0" id="edit_fixed_monto" name="monto" required>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label for="edit_fixed_dia_pago" class="form-label fw-semibold small text-secondary">
+                                <?= htmlspecialchars(__('form_field_day_of_month')) ?> <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-secondary border-end-0">
+                                    <i class="bi bi-calendar-day"></i>
+                                </span>
+                                <input type="number" min="1" max="31" class="form-control border-start-0 ps-0" id="edit_fixed_dia_pago" name="dia_pago" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Payment Method -->
+                    <div class="mb-3">
+                        <label for="edit_fixed_metodo_pago" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_payment_method')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="edit_fixed_metodo_pago" name="metodo_pago" required>
+                            <option value="debito"><?= htmlspecialchars(__('method_debito')) ?></option>
+                            <option value="credito"><?= htmlspecialchars(__('method_credito')) ?></option>
+                            <option value="transferencia"><?= htmlspecialchars(__('method_transferencia')) ?></option>
+                            <option value="efectivo"><?= htmlspecialchars(__('method_efectivo')) ?></option>
+                        </select>
+                    </div>
+
+                    <!-- Link to specific Card or Bank Account -->
+                    <div class="mb-3">
+                        <label for="edit_fixed_cuenta_id" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_link_account')) ?>
+                        </label>
+                        <select class="form-select" id="edit_fixed_cuenta_id" name="cuenta_id">
+                            <option value="0"><?= htmlspecialchars(__('option_no_account')) ?></option>
+                            <?php foreach ($availableAccounts as $acc): ?>
+                                <option value="<?= (int) $acc['id'] ?>">
+                                    <?= htmlspecialchars($acc['nombre']) ?> (<?= htmlspecialchars(format_currency((float) $acc['saldo_actual'])) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <!-- Category -->
+                    <div class="mb-3">
+                        <label for="edit_fixed_categoria" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_category')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-secondary border-end-0">
+                                <i class="bi bi-tag"></i>
+                            </span>
+                            <input class="form-control border-start-0 ps-0" list="fixedCategoriesList" id="edit_fixed_categoria" name="categoria" maxlength="50" required>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="modal-footer border-top py-2 px-4">
+                    <button type="button" class="btn btn-sm btn-light px-3 rounded-pill text-secondary" data-bs-dismiss="modal">
+                        <?= htmlspecialchars(__('btn_cancel')) ?>
+                    </button>
+                    <button type="submit" class="btn btn-sm btn-primary px-4 rounded-pill shadow-sm">
+                        <i class="bi bi-check2-circle me-1"></i>
+                        <?= htmlspecialchars(__('btn_save')) ?>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
+
+<script>
+    // Wire up Edit Fixed Transaction Modal with clicked row data
+    const editFixedModal = document.getElementById('editFixedModal');
+    if (editFixedModal) {
+        editFixedModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const id = button.getAttribute('data-id');
+            const tipo = button.getAttribute('data-tipo');
+            const concepto = button.getAttribute('data-concepto');
+            const monto = button.getAttribute('data-monto');
+            const dia = button.getAttribute('data-dia');
+            const metodo = button.getAttribute('data-metodo');
+            const cuenta = button.getAttribute('data-cuenta');
+            const categoria = button.getAttribute('data-categoria');
+
+            editFixedModal.querySelector('#edit_fixed_id').value = id;
+            editFixedModal.querySelector('#edit_fixed_concepto').value = concepto;
+            editFixedModal.querySelector('#edit_fixed_monto').value = parseFloat(monto).toFixed(2);
+            editFixedModal.querySelector('#edit_fixed_dia_pago').value = dia;
+            editFixedModal.querySelector('#edit_fixed_categoria').value = categoria;
+            editFixedModal.querySelector('#edit_fixed_metodo_pago').value = metodo;
+            editFixedModal.querySelector('#edit_fixed_cuenta_id').value = cuenta;
+
+            if (tipo === 'income') {
+                editFixedModal.querySelector('#edit_fixed_type_income').checked = true;
+            } else {
+                editFixedModal.querySelector('#edit_fixed_type_expense').checked = true;
+            }
+        });
+    }
+</script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
