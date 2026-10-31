@@ -29,12 +29,12 @@ require_once __DIR__ . '/../helpers/lang.php';
                     <div class="p-2 mt-2 bg-light rounded border text-muted small" id="deleteModalConcept"></div>
                 </div>
                 <div class="modal-footer border-0 pt-0">
-                    <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-3 rounded-pill" data-bs-dismiss="modal">
                         <?= htmlspecialchars(__('btn_cancel')) ?>
                     </button>
                     <form id="deleteForm" method="POST" action="eliminar.php" class="d-inline">
                         <input type="hidden" name="id" id="deleteModalId" value="">
-                        <button type="submit" class="btn btn-sm btn-danger px-3">
+                        <button type="submit" class="btn btn-sm btn-danger px-3 rounded-pill">
                             <i class="bi bi-trash3-fill me-1"></i>
                             <?= htmlspecialchars(__('btn_delete')) ?>
                         </button>
@@ -52,7 +52,7 @@ require_once __DIR__ . '/../helpers/lang.php';
                 <span class="mx-1">&bull;</span>
                 <span><?= htmlspecialchars(__('footer_text')) ?></span>
             </div>
-            <div class="small">
+            <div class="small text-muted">
                 &copy; <?= date('Y') ?> <?= htmlspecialchars(__('all_rights_reserved')) ?>
             </div>
         </div>
@@ -77,6 +77,33 @@ require_once __DIR__ . '/../helpers/lang.php';
                 conceptPreview.textContent = txConcept || ('ID #' + txId);
             });
         }
+
+        // AJAX Language Switcher (Keeps URL completely clean without ?lang=)
+        document.querySelectorAll('.lang-switch-form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                fetch('cambiar_idioma.php', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.success) {
+                        // Reload cleanly without any query parameters
+                        window.location.href = window.location.pathname;
+                    } else {
+                        this.submit();
+                    }
+                })
+                .catch(() => {
+                    this.submit();
+                });
+            });
+        });
     </script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 <?php
 /**
  * Dashboard & Transactions Overview
- * Gestor de Presupuesto Personal y Control de Gastos - Phase 1
+ * Gestor de Presupuesto Personal y Control de Gastos - Phase 1+
  */
 
 declare(strict_types=1);
@@ -12,7 +12,7 @@ require_once __DIR__ . '/helpers/lang.php';
 $pdo = getDB();
 
 // -------------------------------------------------------------
-// 1. Fetch Financial Totals (Income & Expenses)
+// 1. Fetch Financial Totals (Actual Recorded Ledger)
 // -------------------------------------------------------------
 $totalIncome = 0.0;
 $totalExpense = 0.0;
@@ -39,12 +39,30 @@ try {
 $netBalance = $totalIncome - $totalExpense;
 
 // -------------------------------------------------------------
-// 2. Fetch All Transactions
+// 2. Fetch Active Fixed / Subscriptions Summary
+// -------------------------------------------------------------
+$totalFixedMonthly = 0.0;
+$fixedCount = 0;
+try {
+    $fixedStmt = $pdo->query("
+        SELECT COUNT(*) as cnt, COALESCE(SUM(monto), 0) as total_fixed 
+        FROM transacciones_fijas 
+        WHERE activo = 1 AND tipo = 'expense'
+    ");
+    $fixedData = $fixedStmt->fetch();
+    $fixedCount = (int) ($fixedData['cnt'] ?? 0);
+    $totalFixedMonthly = (float) ($fixedData['total_fixed'] ?? 0);
+} catch (PDOException $e) {
+    error_log("Error fetching fixed totals: " . $e->getMessage());
+}
+
+// -------------------------------------------------------------
+// 3. Fetch All Transactions
 // -------------------------------------------------------------
 $transactions = [];
 try {
     $stmt = $pdo->query("
-        SELECT id, tipo, concepto, monto, categoria, fecha 
+        SELECT id, tipo, concepto, monto, categoria, fecha, es_fija, fija_id 
         FROM transacciones 
         ORDER BY fecha DESC, id DESC
     ");
@@ -63,7 +81,11 @@ require_once __DIR__ . '/includes/header.php';
         <h1 class="h3 fw-bold mb-1 text-slate-900"><?= htmlspecialchars(__('nav_dashboard')) ?></h1>
         <p class="text-secondary mb-0 small"><?= htmlspecialchars(__('table_subtitle')) ?></p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex flex-wrap gap-2">
+        <a href="fijas.php" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2 rounded-pill">
+            <i class="bi bi-arrow-repeat text-purple"></i>
+            <span><?= htmlspecialchars(__('nav_recurring')) ?> (<?= $fixedCount ?>)</span>
+        </a>
         <a href="agregar.php" class="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2 rounded-pill">
             <i class="bi bi-plus-circle-fill"></i>
             <span><?= htmlspecialchars(__('nav_new_tx')) ?></span>
@@ -142,6 +164,32 @@ require_once __DIR__ . '/includes/header.php';
     </div>
 </div>
 
+<!-- Recurring Commitment Insight Banner -->
+<?php if ($fixedCount > 0): ?>
+    <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-white border-start border-4 border-primary">
+        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <span class="icon-bubble icon-bubble-purple" style="width: 42px; height: 42px; font-size: 1.2rem;">
+                    <i class="bi bi-arrow-repeat"></i>
+                </span>
+                <div>
+                    <h6 class="fw-bold mb-0 text-slate-800">
+                        <?= htmlspecialchars(__('recurring_title')) ?>: 
+                        <span class="text-primary"><?= htmlspecialchars(format_currency($totalFixedMonthly)) ?></span>
+                        <span class="text-muted small fw-normal">/ <?= current_lang() === 'es' ? 'mes en compromisos fijos' : 'month in fixed commitments' ?></span>
+                    </h6>
+                    <small class="text-secondary">
+                        <?= current_lang() === 'es' ? 'Tienes ' . $fixedCount . ' suscripciones o pagos periódicos activos configurados.' : 'You have ' . $fixedCount . ' active subscriptions or scheduled payments.' ?>
+                    </small>
+                </div>
+            </div>
+            <a href="fijas.php" class="btn btn-sm btn-outline-primary rounded-pill px-3 align-self-start align-self-sm-center">
+                <?= current_lang() === 'es' ? 'Ver Suscripciones' : 'View Subscriptions' ?> <i class="bi bi-arrow-right ms-1"></i>
+            </a>
+        </div>
+    </div>
+<?php endif; ?>
+
 <!-- Transactions Table Section -->
 <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
     <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center border-bottom">
@@ -177,11 +225,11 @@ require_once __DIR__ . '/includes/header.php';
                     <thead class="table-light">
                         <tr>
                             <th class="ps-4" style="width: 5%;"><?= htmlspecialchars(__('col_id')) ?></th>
-                            <th style="width: 15%;"><?= htmlspecialchars(__('col_date')) ?></th>
-                            <th style="width: 30%;"><?= htmlspecialchars(__('col_concept')) ?></th>
+                            <th style="width: 14%;"><?= htmlspecialchars(__('col_date')) ?></th>
+                            <th style="width: 28%;"><?= htmlspecialchars(__('col_concept')) ?></th>
                             <th style="width: 15%;"><?= htmlspecialchars(__('col_category')) ?></th>
-                            <th style="width: 12%;"><?= htmlspecialchars(__('col_type')) ?></th>
-                            <th class="text-end" style="width: 13%;"><?= htmlspecialchars(__('col_amount')) ?></th>
+                            <th style="width: 13%;"><?= htmlspecialchars(__('col_type')) ?></th>
+                            <th class="text-end" style="width: 15%;"><?= htmlspecialchars(__('col_amount')) ?></th>
                             <th class="text-center pe-4" style="width: 10%;"><?= htmlspecialchars(__('col_actions')) ?></th>
                         </tr>
                     </thead>
@@ -198,9 +246,17 @@ require_once __DIR__ . '/includes/header.php';
                                     </div>
                                 </td>
                                 <td>
-                                    <span class="fw-semibold text-slate-800">
-                                        <?= htmlspecialchars($tx['concepto']) ?>
-                                    </span>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="fw-semibold text-slate-800">
+                                            <?= htmlspecialchars($tx['concepto']) ?>
+                                        </span>
+                                        <?php if (!empty($tx['es_fija'])): ?>
+                                            <span class="badge-recurring-pill d-inline-flex align-items-center gap-1" title="<?= htmlspecialchars(__('badge_recurring')) ?>">
+                                                <i class="bi bi-arrow-repeat"></i>
+                                                <?= htmlspecialchars(__('badge_recurring')) ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                                 <td>
                                     <span class="badge-category">

@@ -1,7 +1,7 @@
 <?php
 /**
  * Add New Transaction Form & Handler
- * Gestor de Presupuesto Personal y Control de Gastos - Phase 1
+ * Gestor de Presupuesto Personal y Control de Gastos - Phase 1+
  */
 
 declare(strict_types=1);
@@ -13,11 +13,12 @@ $pdo = getDB();
 
 $errors = [];
 $formData = [
-    'tipo'      => 'expense', // sensible default for everyday expenses
-    'concepto'  => '',
-    'monto'     => '',
-    'categoria' => '',
-    'fecha'     => date('Y-m-d')
+    'tipo'         => 'expense', // sensible default for everyday expenses
+    'concepto'     => '',
+    'monto'        => '',
+    'categoria'    => '',
+    'fecha'        => date('Y-m-d'),
+    'es_recurrente'=> ''
 ];
 
 // -------------------------------------------------------------
@@ -25,11 +26,12 @@ $formData = [
 // -------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Sanitize and trim inputs
-    $formData['tipo']      = trim($_POST['tipo'] ?? '');
-    $formData['concepto']  = trim($_POST['concepto'] ?? '');
-    $formData['monto']     = trim($_POST['monto'] ?? '');
-    $formData['categoria'] = trim($_POST['categoria'] ?? '');
-    $formData['fecha']     = trim($_POST['fecha'] ?? '');
+    $formData['tipo']          = trim($_POST['tipo'] ?? '');
+    $formData['concepto']      = trim($_POST['concepto'] ?? '');
+    $formData['monto']         = trim($_POST['monto'] ?? '');
+    $formData['categoria']     = trim($_POST['categoria'] ?? '');
+    $formData['fecha']         = trim($_POST['fecha'] ?? '');
+    $formData['es_recurrente'] = !empty($_POST['es_recurrente']) ? '1' : '';
 
     // Validation 1: Required fields
     if (
@@ -74,9 +76,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // If no validation errors, proceed with DB insertion using prepared statement
     if (empty($errors)) {
         try {
+            $fijaId = null;
+            $esFija = 0;
+
+            // If user checked "Save also as recurring payment / subscription"
+            if (!empty($formData['es_recurrente'])) {
+                $dayOfMonth = (int) date('j', strtotime($formData['fecha']));
+                $stmtFija = $pdo->prepare("
+                    INSERT INTO transacciones_fijas (tipo, concepto, monto, categoria, dia_pago, activo, ultima_generacion) 
+                    VALUES (:tipo, :concepto, :monto, :categoria, :dia_pago, 1, :ultima_generacion)
+                ");
+                $stmtFija->execute([
+                    ':tipo'              => $formData['tipo'],
+                    ':concepto'          => $formData['concepto'],
+                    ':monto'             => round((float) $formData['monto'], 2),
+                    ':categoria'         => $formData['categoria'],
+                    ':dia_pago'          => $dayOfMonth,
+                    ':ultima_generacion' => $formData['fecha']
+                ]);
+                $fijaId = (int) $pdo->lastInsertId();
+                $esFija = 1;
+            }
+
+            // Insert into main transactions ledger
             $stmt = $pdo->prepare("
-                INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha) 
-                VALUES (:tipo, :concepto, :monto, :categoria, :fecha)
+                INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id) 
+                VALUES (:tipo, :concepto, :monto, :categoria, :fecha, :es_fija, :fija_id)
             ");
 
             $stmt->execute([
@@ -84,7 +109,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':concepto'  => $formData['concepto'],
                 ':monto'     => round((float) $formData['monto'], 2),
                 ':categoria' => $formData['categoria'],
-                ':fecha'     => $formData['fecha']
+                ':fecha'     => $formData['fecha'],
+                ':es_fija'   => $esFija,
+                ':fija_id'   => $fijaId
             ]);
 
             set_flash('success', __('msg_success_add'));
@@ -262,7 +289,7 @@ require_once __DIR__ . '/includes/header.php';
                     </div>
 
                     <!-- Category (With Datalist for typing or quick picking) -->
-                    <div class="mb-4">
+                    <div class="mb-3">
                         <label for="categoria" class="form-label fw-semibold small text-secondary">
                             <?= htmlspecialchars(__('form_field_category')) ?> <span class="text-danger">*</span>
                         </label>
@@ -288,6 +315,26 @@ require_once __DIR__ . '/includes/header.php';
                         </div>
                         <div class="form-text small">
                             <?= htmlspecialchars(__('form_select_category')) ?>
+                        </div>
+                    </div>
+
+                    <!-- Option to also save as monthly recurring subscription -->
+                    <div class="form-check form-switch p-3 mb-4 bg-light rounded-3 border">
+                        <input 
+                            class="form-check-input ms-0 me-2" 
+                            type="checkbox" 
+                            role="switch" 
+                            id="es_recurrente" 
+                            name="es_recurrente" 
+                            value="1" 
+                            <?= (!empty($formData['es_recurrente'])) ? 'checked' : '' ?>
+                        >
+                        <label class="form-check-label fw-semibold small" for="es_recurrente">
+                            <i class="bi bi-arrow-repeat text-purple me-1"></i>
+                            <?= htmlspecialchars(__('form_save_as_recurring')) ?>
+                        </label>
+                        <div class="text-muted small ms-4">
+                            <?= htmlspecialchars(__('form_save_as_recurring_help')) ?>
                         </div>
                     </div>
 

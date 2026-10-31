@@ -8,16 +8,17 @@ return [
     // Application branding
     'app_name'           => 'Personal Budget Manager',
     'app_subtitle'       => 'Expense Tracker & Financial Balance',
-    'phase_tag'          => 'Phase 1',
+    'phase_tag'          => 'Phase 1+',
 
     // Navigation
     'nav_dashboard'      => 'Dashboard',
     'nav_new_tx'         => 'Add Transaction',
+    'nav_recurring'      => 'Subscriptions & Fixed',
     'nav_language'       => 'Language',
     'lang_en'            => 'English',
     'lang_es'            => 'Spanish',
 
-    // Summary Cards
+    // Summary Cards (General)
     'card_total_income'  => 'Total Income',
     'card_total_expense' => 'Total Expenses',
     'card_net_balance'   => 'Net Balance',
@@ -25,9 +26,33 @@ return [
     'card_balance_neg'   => 'Deficit',
     'card_balance_zero'  => 'Balanced',
 
+    // Fixed & Subscriptions Cards
+    'recurring_title'            => 'Monthly Fixed Payments & Subscriptions',
+    'recurring_subtitle'         => 'Manage recurring commitments (Rent, Netflix, Spotify, Gym, Fixed Salary)',
+    'card_fixed_income'          => 'Fixed Monthly Income',
+    'card_fixed_expense'         => 'Fixed Monthly Expenses',
+    'card_projected_fixed'       => 'Fixed Monthly Balance',
+    'col_billing_day'            => 'Billing Day',
+    'day_of_month_format'        => 'Day :day of each month',
+    'col_status'                 => 'Status',
+    'status_active'              => 'Active',
+    'status_paused'              => 'Paused',
+    'btn_toggle_status'          => 'Toggle Active / Paused',
+    'btn_apply_to_month'         => 'Record into this month',
+    'badge_applied_this_month'   => 'Recorded this month',
+    'badge_pending_this_month'   => 'Pending this month',
+    'btn_apply_all_pending'      => 'Record All Pending for Current Month',
+    'btn_new_fixed'              => 'New Fixed Payment / Subscription',
+    'form_fixed_title'           => 'Add Fixed Commitment / Subscription',
+    'form_fixed_subtitle'        => 'Register an automated monthly recurring payment or regular salary',
+    'form_field_day_of_month'    => 'Billing / Execution Day (1 - 31)',
+    'form_help_day_of_month'     => 'Day of each month when this payment is scheduled.',
+
     // Transaction Types & Badges
     'type_income'        => 'Income',
     'type_expense'       => 'Expense',
+    'badge_recurring'    => 'Recurring',
+    'badge_one_time'     => 'One-time',
 
     // Table Columns & UI
     'table_title'        => 'Recent Transactions',
@@ -40,27 +65,31 @@ return [
     'col_amount'         => 'Amount',
     'col_actions'        => 'Actions',
     'btn_delete'         => 'Delete',
-    'delete_confirm'     => 'Are you sure you want to delete this transaction? This action cannot be undone.',
+    'delete_confirm'     => 'Are you sure you want to delete this record? This action cannot be undone.',
 
-    // Empty State
+    // Empty States
     'empty_title'        => 'No transactions recorded yet',
     'empty_subtitle'     => 'Start taking control of your personal finances by registering your first income or expense.',
     'btn_add_first'      => 'Add Your First Transaction',
+    'empty_fixed_title'  => 'No fixed payments or subscriptions yet',
+    'empty_fixed_desc'   => 'Add subscriptions like Netflix, Spotify, gym, rent or monthly salary to automate and forecast your budget.',
 
     // Form: New Transaction
-    'form_title'         => 'Register Transaction',
-    'form_subtitle'      => 'Record a new income or expense in your ledger',
-    'form_field_type'    => 'Transaction Type',
-    'form_select_type'   => '-- Select Type --',
-    'form_field_concept' => 'Concept / Description',
-    'form_placeholder_concept' => 'e.g., Grocery shopping, Monthly salary, Netflix subscription',
-    'form_field_amount'  => 'Amount',
-    'form_field_category'=> 'Category',
-    'form_select_category' => '-- Select or type a category --',
-    'form_field_date'    => 'Transaction Date',
-    'btn_save'           => 'Save Transaction',
-    'btn_cancel'         => 'Cancel',
-    'btn_back'           => 'Back to Dashboard',
+    'form_title'                 => 'Register Transaction',
+    'form_subtitle'              => 'Record a new income or expense in your ledger',
+    'form_field_type'            => 'Transaction Type',
+    'form_select_type'           => '-- Select Type --',
+    'form_field_concept'         => 'Concept / Description',
+    'form_placeholder_concept'   => 'e.g., Grocery shopping, Monthly salary, Netflix subscription',
+    'form_field_amount'          => 'Amount',
+    'form_field_category'        => 'Category',
+    'form_select_category'       => '-- Select or type a category --',
+    'form_field_date'            => 'Transaction Date',
+    'form_save_as_recurring'     => 'Save also as a monthly recurring transaction / subscription',
+    'form_save_as_recurring_help'=> 'If checked, this item will also be tracked under your monthly fixed subscriptions.',
+    'btn_save'                   => 'Save Transaction',
+    'btn_cancel'                 => 'Cancel',
+    'btn_back'                   => 'Back to Dashboard',
 
     // Default Categories
     'cat_salary'         => 'Salary',
@@ -76,19 +105,25 @@ return [
     'cat_other'          => 'Other',
 
     // Flash & Validation Messages
-    'msg_success_add'    => 'Transaction recorded successfully!',
-    'msg_success_delete' => 'Transaction was successfully deleted.',
-    'msg_error_delete'   => 'Could not delete transaction. Please verify the ID.',
-    'msg_error_not_found'=> 'The requested transaction was not found.',
-    'val_required_fields'=> 'Please fill in all required fields.',
-    'val_invalid_type'   => 'Invalid transaction type selected. Must be Income or Expense.',
-    'val_invalid_amount' => 'Amount must be a positive numeric value greater than 0.00.',
-    'val_concept_len'    => 'Concept description cannot exceed 150 characters.',
-    'val_category_len'   => 'Category name cannot exceed 50 characters.',
-    'val_invalid_date'   => 'Please provide a valid date in YYYY-MM-DD format.',
-    'val_db_error'       => 'A database error occurred while saving. Please try again.',
+    'msg_success_add'            => 'Transaction recorded successfully!',
+    'msg_success_delete'         => 'Transaction was successfully deleted.',
+    'msg_error_delete'           => 'Could not delete transaction. Please verify the ID.',
+    'msg_error_not_found'        => 'The requested transaction was not found.',
+    'msg_fixed_added'            => 'Fixed payment / subscription added successfully!',
+    'msg_fixed_applied'          => 'Subscription was recorded in this month\'s transactions!',
+    'msg_fixed_status_updated'   => 'Subscription status updated.',
+    'msg_fixed_deleted'          => 'Fixed transaction removed.',
+    'msg_all_fixed_applied'      => 'All pending subscriptions for this month were registered!',
+    'val_required_fields'        => 'Please fill in all required fields.',
+    'val_invalid_type'           => 'Invalid transaction type selected. Must be Income or Expense.',
+    'val_invalid_amount'         => 'Amount must be a positive numeric value greater than 0.00.',
+    'val_concept_len'            => 'Concept description cannot exceed 150 characters.',
+    'val_category_len'           => 'Category name cannot exceed 50 characters.',
+    'val_invalid_date'           => 'Please provide a valid date in YYYY-MM-DD format.',
+    'val_invalid_day'            => 'Billing day must be between 1 and 31.',
+    'val_db_error'               => 'A database error occurred while saving. Please try again.',
 
     // Footer
-    'footer_text'        => 'Personal Budget Manager - Phase 1. Native PHP 8, MySQL PDO & Bootstrap 5.',
+    'footer_text'        => 'Personal Budget Manager. Native PHP 8, MySQL PDO & Bootstrap 5.',
     'all_rights_reserved'=> 'All rights reserved.',
 ];

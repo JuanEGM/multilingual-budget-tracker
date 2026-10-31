@@ -17,13 +17,6 @@ if (session_status() === PHP_SESSION_NONE) {
 const SUPPORTED_LANGS = ['en', 'es'];
 const DEFAULT_LANG = 'en';
 
-/**
- * Handle language switching via GET parameter and persist in Session
- */
-if (isset($_GET['lang']) && in_array($_GET['lang'], SUPPORTED_LANGS, true)) {
-    $_SESSION['lang'] = $_GET['lang'];
-}
-
 // Fallback to default if no session language is set
 if (!isset($_SESSION['lang']) || !in_array($_SESSION['lang'], SUPPORTED_LANGS, true)) {
     $_SESSION['lang'] = DEFAULT_LANG;
@@ -65,7 +58,7 @@ function load_language_dict(string $lang): array
  * Translate a key into the active language
  * 
  * @param string $key Dictionary key
- * @param array $replacements Key-value pairs for placeholders (e.g. [':count' => 5])
+ * @param array $replacements Key-value pairs for placeholders (e.g. [':day' => 15])
  * @return string Translated string or key name if missing
  */
 function __(string $key, array $replacements = []): string
@@ -153,18 +146,4 @@ function get_flash(): ?array
         return $flash;
     }
     return null;
-}
-
-/**
- * Builds a URL retaining existing GET parameters while overriding the language
- * 
- * @param string $targetLang
- * @return string
- */
-function lang_url(string $targetLang): string
-{
-    $params = $_GET;
-    $params['lang'] = $targetLang;
-    $currentScript = basename($_SERVER['PHP_SELF'] ?? 'index.php');
-    return $currentScript . '?' . http_build_query($params);
 }

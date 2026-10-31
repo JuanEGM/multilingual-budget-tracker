@@ -110,6 +110,11 @@ $flashMessage = get_flash();
             color: #2563eb;
         }
 
+        .icon-bubble-purple {
+            background-color: #f5f3ff;
+            color: #7c3aed;
+        }
+
         .badge-income {
             background-color: #d1fae5;
             color: #065f46;
@@ -134,6 +139,16 @@ $flashMessage = get_flash();
             font-size: 0.82rem;
             padding: 0.3em 0.6em;
             border: 1px solid #e2e8f0;
+        }
+
+        .badge-recurring-pill {
+            background-color: #f5f3ff;
+            color: #6d28d9;
+            border: 1px solid #ddd6fe;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 20px;
+            padding: 0.2em 0.55em;
         }
 
         .table th {
@@ -169,6 +184,14 @@ $flashMessage = get_flash();
             color: #64748b;
             font-size: 0.875rem;
         }
+
+        .btn-lang-submit {
+            background: none;
+            border: none;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -198,36 +221,47 @@ $flashMessage = get_flash();
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link <?= ($currentPage === 'fijas.php') ? 'active fw-semibold' : '' ?>" href="fijas.php">
+                            <i class="bi bi-arrow-repeat me-1"></i> <?= htmlspecialchars(__('nav_recurring')) ?>
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link <?= ($currentPage === 'agregar.php') ? 'active fw-semibold' : '' ?>" href="agregar.php">
                             <i class="bi bi-plus-circle-fill me-1"></i> <?= htmlspecialchars(__('nav_new_tx')) ?>
                         </a>
                     </li>
                 </ul>
 
-                <!-- Language Switcher Dropdown -->
+                <!-- Language Switcher (Direct in App via POST / AJAX - Clean URLs with NO ?lang= in route) -->
                 <div class="d-flex align-items-center gap-3">
                     <div class="dropdown">
                         <button class="btn btn-sm btn-outline-light dropdown-toggle d-flex align-items-center gap-2 px-3 py-1 rounded-pill" type="button" id="langDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-translate"></i>
-                            <span><?= ($activeLang === 'es') ? '🇪🇸 Español' : '🇺🇸 English' ?></span>
+                            <span id="currentLangLabel"><?= ($activeLang === 'es') ? '🇪🇸 Español' : '🇺🇸 English' ?></span>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2" aria-labelledby="langDropdown">
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2 p-1" aria-labelledby="langDropdown">
                             <li><h6 class="dropdown-header small text-uppercase"><?= htmlspecialchars(__('nav_language')) ?></h6></li>
                             <li>
-                                <a class="dropdown-item d-flex align-items-center justify-content-between py-2 <?= ($activeLang === 'en') ? 'lang-active bg-light' : '' ?>" href="<?= htmlspecialchars(lang_url('en')) ?>">
-                                    <span>🇺🇸 <?= htmlspecialchars(__('lang_en')) ?></span>
-                                    <?php if ($activeLang === 'en'): ?>
-                                        <i class="bi bi-check2 text-primary"></i>
-                                    <?php endif; ?>
-                                </a>
+                                <form method="POST" action="cambiar_idioma.php" class="m-0 p-0 lang-switch-form">
+                                    <input type="hidden" name="lang" value="en">
+                                    <button type="submit" class="dropdown-item d-flex align-items-center justify-content-between py-2 rounded-2 <?= ($activeLang === 'en') ? 'lang-active bg-light' : '' ?>">
+                                        <span>🇺🇸 <?= htmlspecialchars(__('lang_en')) ?></span>
+                                        <?php if ($activeLang === 'en'): ?>
+                                            <i class="bi bi-check2 text-primary"></i>
+                                        <?php endif; ?>
+                                    </button>
+                                </form>
                             </li>
                             <li>
-                                <a class="dropdown-item d-flex align-items-center justify-content-between py-2 <?= ($activeLang === 'es') ? 'lang-active bg-light' : '' ?>" href="<?= htmlspecialchars(lang_url('es')) ?>">
-                                    <span>🇪🇸 <?= htmlspecialchars(__('lang_es')) ?></span>
-                                    <?php if ($activeLang === 'es'): ?>
-                                        <i class="bi bi-check2 text-primary"></i>
-                                    <?php endif; ?>
-                                </a>
+                                <form method="POST" action="cambiar_idioma.php" class="m-0 p-0 lang-switch-form">
+                                    <input type="hidden" name="lang" value="es">
+                                    <button type="submit" class="dropdown-item d-flex align-items-center justify-content-between py-2 rounded-2 <?= ($activeLang === 'es') ? 'lang-active bg-light' : '' ?>">
+                                        <span>🇪🇸 <?= htmlspecialchars(__('lang_es')) ?></span>
+                                        <?php if ($activeLang === 'es'): ?>
+                                            <i class="bi bi-check2 text-primary"></i>
+                                        <?php endif; ?>
+                                    </button>
+                                </form>
                             </li>
                         </ul>
                     </div>
