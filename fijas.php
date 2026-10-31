@@ -20,11 +20,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Action 1: Create a new fixed transaction / subscription
     if ($action === 'create') {
-        $tipo      = trim($_POST['tipo'] ?? '');
-        $concepto  = trim($_POST['concepto'] ?? '');
-        $monto     = trim($_POST['monto'] ?? '');
-        $categoria = trim($_POST['categoria'] ?? '');
-        $diaPago   = filter_var($_POST['dia_pago'] ?? 1, FILTER_VALIDATE_INT);
+        $tipo       = trim($_POST['tipo'] ?? '');
+        $concepto   = trim($_POST['concepto'] ?? '');
+        $monto      = trim($_POST['monto'] ?? '');
+        $categoria  = trim($_POST['categoria'] ?? '');
+        $diaPago    = filter_var($_POST['dia_pago'] ?? 1, FILTER_VALIDATE_INT);
+        $metodoPago = trim($_POST['metodo_pago'] ?? 'debito');
+        $cuentaId   = filter_var($_POST['cuenta_id'] ?? 0, FILTER_VALIDATE_INT);
+        if ($cuentaId <= 0) {
+            $cuentaId = null;
+        }
+
+        $validMethods = ['debito', 'credito', 'transferencia', 'efectivo'];
+        if (!in_array($metodoPago, $validMethods, true)) {
+            $metodoPago = 'debito';
+        }
 
         $errors = [];
         if (empty($tipo) || empty($concepto) || $monto === '' || empty($categoria) || $diaPago === false) {
@@ -48,16 +58,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($errors)) {
             try {
+                $amountFloat = round((float) $monto, 2);
+
                 $stmt = $pdo->prepare("
-                    INSERT INTO transacciones_fijas (tipo, concepto, monto, categoria, dia_pago, activo) 
-                    VALUES (:tipo, :concepto, :monto, :categoria, :dia_pago, 1)
+                    INSERT INTO transacciones_fijas (tipo, concepto, monto, categoria, dia_pago, metodo_pago, cuenta_id, activo) 
+                    VALUES (:tipo, :concepto, :monto, :categoria, :dia_pago, :metodo_pago, :cuenta_id, 1)
                 ");
                 $stmt->execute([
-                    ':tipo'      => $tipo,
-                    ':concepto'  => $concepto,
-                    ':monto'     => round((float) $monto, 2),
-                    ':categoria' => $categoria,
-                    ':dia_pago'  => $diaPago
+                    ':tipo'        => $tipo,
+                    ':concepto'    => $concepto,
+                    ':monto'       => $amountFloat,
+                    ':categoria'   => $categoria,
+                    ':dia_pago'    => $diaPago,
+                    ':metodo_pago' => $metodoPago,
+                    ':cuenta_id'   => $cuentaId
                 ]);
 
                 // Check if user also requested to log it for the current month right now
@@ -68,20 +82,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $execDate = date('Y-m-') . sprintf('%02d', $execDay);
 
                     $logStmt = $pdo->prepare("
-                        INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id) 
-                        VALUES (:tipo, :concepto, :monto, :categoria, :fecha, 1, :fija_id)
+                        INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id, cuenta_id, metodo_pago) 
+                        VALUES (:tipo, :concepto, :monto, :categoria, :fecha, 1, :fija_id, :cuenta_id, :metodo_pago)
                     ");
                     $logStmt->execute([
-                        ':tipo'      => $tipo,
-                        ':concepto'  => $concepto,
-                        ':monto'     => round((float) $monto, 2),
-                        ':categoria' => $categoria,
-                        ':fecha'     => $execDate,
-                        ':fija_id'   => $newId
+                        ':tipo'        => $tipo,
+                        ':concepto'    => $concepto,
+                        ':monto'       => $amountFloat,
+                        ':categoria'   => $categoria,
+                        ':fecha'       => $execDate,
+                        ':fija_id'     => $newId,
+                        ':cuenta_id'   => $cuentaId,
+                        ':metodo_pago' => $metodoPago
                     ]);
 
                     $pdo->prepare("UPDATE transacciones_fijas SET ultima_generacion = :fecha WHERE id = :id")
                         ->execute([':fecha' => $execDate, ':id' => $newId]);
+
+                    // Deduct from or add to account balance if linked
+                    if ($cuentaId) {
+                        if ($tipo === 'expense') {
+                            $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual - :monto WHERE id = :id")
+                                ->execute([':monto' => $amountFloat, ':id' => $cuentaId]);
+                        } else {
+                            $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual + :monto WHERE id = :id")
+                                ->execute([':monto' => $amountFloat, ':id' => $cuentaId]);
+                        }
+                    }
                 }
 
                 set_flash('success', __('msg_fixed_added'));
@@ -126,22 +153,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $daysInCurrentMonth = (int) date('t');
                     $execDay = min((int) $item['dia_pago'], $daysInCurrentMonth);
                     $execDate = date('Y-m-') . sprintf('%02d', $execDay);
+                    $montoFloat = (float) $item['monto'];
 
                     $insStmt = $pdo->prepare("
-                        INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id) 
-                        VALUES (:tipo, :concepto, :monto, :categoria, :fecha, 1, :fija_id)
+                        INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id, cuenta_id, metodo_pago) 
+                        VALUES (:tipo, :concepto, :monto, :categoria, :fecha, 1, :fija_id, :cuenta_id, :metodo_pago)
                     ");
                     $insStmt->execute([
-                        ':tipo'      => $item['tipo'],
-                        ':concepto'  => $item['concepto'],
-                        ':monto'     => $item['monto'],
-                        ':categoria' => $item['categoria'],
-                        ':fecha'     => $execDate,
-                        ':fija_id'   => $item['id']
+                        ':tipo'        => $item['tipo'],
+                        ':concepto'    => $item['concepto'],
+                        ':monto'       => $montoFloat,
+                        ':categoria'   => $item['categoria'],
+                        ':fecha'       => $execDate,
+                        ':fija_id'     => $item['id'],
+                        ':cuenta_id'   => $item['cuenta_id'] ?? null,
+                        ':metodo_pago' => $item['metodo_pago'] ?? 'debito'
                     ]);
 
                     $pdo->prepare("UPDATE transacciones_fijas SET ultima_generacion = :fecha WHERE id = :id")
                         ->execute([':fecha' => $execDate, ':id' => $item['id']]);
+
+                    // Deduct from account balance if linked
+                    if (!empty($item['cuenta_id'])) {
+                        if ($item['tipo'] === 'expense') {
+                            $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual - :monto WHERE id = :id")
+                                ->execute([':monto' => $montoFloat, ':id' => $item['cuenta_id']]);
+                        } else {
+                            $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual + :monto WHERE id = :id")
+                                ->execute([':monto' => $montoFloat, ':id' => $item['cuenta_id']]);
+                        }
+                    }
 
                     set_flash('success', __('msg_fixed_applied'));
                 }
@@ -170,22 +211,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($pendingItems as $item) {
                 $execDay = min((int) $item['dia_pago'], $daysInCurrentMonth);
                 $execDate = date('Y-m-') . sprintf('%02d', $execDay);
+                $montoFloat = (float) $item['monto'];
 
                 $insStmt = $pdo->prepare("
-                    INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id) 
-                    VALUES (:tipo, :concepto, :monto, :categoria, :fecha, 1, :fija_id)
+                    INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id, cuenta_id, metodo_pago) 
+                    VALUES (:tipo, :concepto, :monto, :categoria, :fecha, 1, :fija_id, :cuenta_id, :metodo_pago)
                 ");
                 $insStmt->execute([
-                    ':tipo'      => $item['tipo'],
-                    ':concepto'  => $item['concepto'],
-                    ':monto'     => $item['monto'],
-                    ':categoria' => $item['categoria'],
-                    ':fecha'     => $execDate,
-                    ':fija_id'   => $item['id']
+                    ':tipo'        => $item['tipo'],
+                    ':concepto'    => $item['concepto'],
+                    ':monto'       => $montoFloat,
+                    ':categoria'   => $item['categoria'],
+                    ':fecha'       => $execDate,
+                    ':fija_id'     => $item['id'],
+                    ':cuenta_id'   => $item['cuenta_id'] ?? null,
+                    ':metodo_pago' => $item['metodo_pago'] ?? 'debito'
                 ]);
 
                 $pdo->prepare("UPDATE transacciones_fijas SET ultima_generacion = :fecha WHERE id = :id")
                     ->execute([':fecha' => $execDate, ':id' => $item['id']]);
+
+                // Update account balance if linked
+                if (!empty($item['cuenta_id'])) {
+                    if ($item['tipo'] === 'expense') {
+                        $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual - :monto WHERE id = :id")
+                            ->execute([':monto' => $montoFloat, ':id' => $item['cuenta_id']]);
+                    } else {
+                        $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual + :monto WHERE id = :id")
+                            ->execute([':monto' => $montoFloat, ':id' => $item['cuenta_id']]);
+                    }
+                }
 
                 $appliedCount++;
             }
@@ -249,17 +304,30 @@ try {
 $projectedFixedBalance = $fixedIncome - $fixedExpenses;
 
 // -------------------------------------------------------------
-// Fetch All Recurring Transactions
+// Fetch Available Accounts for Linking
+// -------------------------------------------------------------
+$availableAccounts = [];
+try {
+    $accListStmt = $pdo->query("SELECT id, nombre, tipo, saldo_actual FROM cuentas ORDER BY nombre ASC");
+    $availableAccounts = $accListStmt->fetchAll();
+} catch (PDOException $e) {
+    error_log("Error fetching accounts: " . $e->getMessage());
+}
+
+// -------------------------------------------------------------
+// Fetch All Recurring Transactions with Account Names
 // -------------------------------------------------------------
 $recurringItems = [];
 $pendingCount = 0;
 
 try {
     $stmt = $pdo->query("
-        SELECT id, tipo, concepto, monto, categoria, dia_pago, activo, ultima_generacion,
-               (ultima_generacion IS NOT NULL AND DATE_FORMAT(ultima_generacion, '%Y-%m') = DATE_FORMAT(CURRENT_DATE(), '%Y-%m')) AS ya_registrado_este_mes
-        FROM transacciones_fijas 
-        ORDER BY dia_pago ASC, id ASC
+        SELECT f.id, f.tipo, f.concepto, f.monto, f.categoria, f.dia_pago, f.metodo_pago, f.cuenta_id, f.activo, f.ultima_generacion,
+               c.nombre AS nombre_cuenta, c.tipo AS tipo_cuenta,
+               (f.ultima_generacion IS NOT NULL AND DATE_FORMAT(f.ultima_generacion, '%Y-%m') = DATE_FORMAT(CURRENT_DATE(), '%Y-%m')) AS ya_registrado_este_mes
+        FROM transacciones_fijas f
+        LEFT JOIN cuentas c ON f.cuenta_id = c.id
+        ORDER BY f.dia_pago ASC, f.id ASC
     ");
     $recurringItems = $stmt->fetchAll();
 
@@ -298,6 +366,10 @@ require_once __DIR__ . '/includes/header.php';
         <p class="text-secondary mb-0 small"><?= htmlspecialchars(__('recurring_subtitle')) ?></p>
     </div>
     <div class="d-flex flex-wrap gap-2">
+        <a href="cuentas.php" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2 rounded-pill px-3 py-2 shadow-sm">
+            <i class="bi bi-credit-card-2-front"></i>
+            <span><?= htmlspecialchars(__('nav_accounts')) ?></span>
+        </a>
         <?php if ($pendingCount > 0): ?>
             <form method="POST" action="fijas.php" class="d-inline">
                 <input type="hidden" name="action" value="apply_all">
@@ -407,13 +479,14 @@ require_once __DIR__ . '/includes/header.php';
                     <thead class="table-light">
                         <tr>
                             <th class="ps-4" style="width: 5%;"><?= htmlspecialchars(__('col_id')) ?></th>
-                            <th style="width: 25%;"><?= htmlspecialchars(__('col_concept')) ?></th>
-                            <th style="width: 15%;"><?= htmlspecialchars(__('col_category')) ?></th>
-                            <th style="width: 15%;"><?= htmlspecialchars(__('col_billing_day')) ?></th>
-                            <th style="width: 10%;"><?= htmlspecialchars(__('col_type')) ?></th>
+                            <th style="width: 23%;"><?= htmlspecialchars(__('col_concept')) ?></th>
+                            <th style="width: 14%;"><?= htmlspecialchars(__('col_category')) ?></th>
+                            <th style="width: 13%;"><?= htmlspecialchars(__('col_billing_day')) ?></th>
+                            <th style="width: 15%;"><?= htmlspecialchars(__('col_payment_method')) ?></th>
+                            <th style="width: 8%;"><?= htmlspecialchars(__('col_type')) ?></th>
                             <th class="text-end" style="width: 12%;"><?= htmlspecialchars(__('col_amount')) ?></th>
-                            <th class="text-center" style="width: 10%;"><?= htmlspecialchars(__('col_status')) ?></th>
-                            <th class="text-center pe-4" style="width: 8%;"><?= htmlspecialchars(__('col_actions')) ?></th>
+                            <th class="text-center" style="width: 5%;"><?= htmlspecialchars(__('col_status')) ?></th>
+                            <th class="text-center pe-4" style="width: 5%;"><?= htmlspecialchars(__('col_actions')) ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -452,6 +525,30 @@ require_once __DIR__ . '/includes/header.php';
                                         <i class="bi bi-calendar-event text-secondary"></i>
                                         <?= htmlspecialchars(__('day_of_month_format', [':day' => $item['dia_pago']])) ?>
                                     </span>
+                                </td>
+                                <td>
+                                    <?php 
+                                        $methodLabel = __('method_debito');
+                                        $methodIcon = 'bi-credit-card';
+                                        if ($item['metodo_pago'] === 'credito') {
+                                            $methodLabel = __('method_credito');
+                                            $methodIcon = 'bi-credit-card-2-front';
+                                        } elseif ($item['metodo_pago'] === 'transferencia') {
+                                            $methodLabel = __('method_transferencia');
+                                            $methodIcon = 'bi-bank';
+                                        } elseif ($item['metodo_pago'] === 'efectivo') {
+                                            $methodLabel = __('method_efectivo');
+                                            $methodIcon = 'bi-cash-stack';
+                                        }
+                                    ?>
+                                    <span class="badge bg-light text-dark border d-inline-flex align-items-center gap-1">
+                                        <i class="bi <?= $methodIcon ?> text-primary"></i> <?= htmlspecialchars($methodLabel) ?>
+                                    </span>
+                                    <?php if (!empty($item['nombre_cuenta'])): ?>
+                                        <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                                            <i class="bi bi-arrow-return-right me-1"></i><?= htmlspecialchars($item['nombre_cuenta']) ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <?php if ($item['tipo'] === 'income'): ?>
@@ -588,6 +685,37 @@ require_once __DIR__ . '/includes/header.php';
                         </div>
                     </div>
 
+                    <!-- Payment Method (Debit / Credit / Transfer / Cash) -->
+                    <div class="mb-3">
+                        <label for="fixed_metodo_pago" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_payment_method')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="fixed_metodo_pago" name="metodo_pago" required>
+                            <option value="debito"><?= htmlspecialchars(__('method_debito')) ?></option>
+                            <option value="credito"><?= htmlspecialchars(__('method_credito')) ?></option>
+                            <option value="transferencia"><?= htmlspecialchars(__('method_transferencia')) ?></option>
+                            <option value="efectivo"><?= htmlspecialchars(__('method_efectivo')) ?></option>
+                        </select>
+                    </div>
+
+                    <!-- Link to specific Card or Bank Account -->
+                    <div class="mb-3">
+                        <label for="fixed_cuenta_id" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_link_account')) ?>
+                        </label>
+                        <select class="form-select" id="fixed_cuenta_id" name="cuenta_id">
+                            <option value="0"><?= htmlspecialchars(__('option_no_account')) ?></option>
+                            <?php foreach ($availableAccounts as $acc): ?>
+                                <option value="<?= (int) $acc['id'] ?>">
+                                    <?= htmlspecialchars($acc['nombre']) ?> (<?= htmlspecialchars(format_currency((float) $acc['saldo_actual'])) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text small">
+                            <?= current_lang() === 'es' ? 'Permite vincular este gasto a una tarjeta o cuenta bancaria para calcular su saldo restante proyectado.' : 'Links this recurring expense to a card to calculate its remaining balance.' ?>
+                        </div>
+                    </div>
+
                     <!-- Category -->
                     <div class="mb-3">
                         <label for="fixed_categoria" class="form-label fw-semibold small text-secondary">
@@ -613,7 +741,7 @@ require_once __DIR__ . '/includes/header.php';
                             <?= htmlspecialchars(__('btn_apply_to_month')) ?> (<?= date('F Y') ?>)
                         </label>
                         <div class="text-muted small ms-4">
-                            <?= current_lang() === 'es' ? 'Crea también el registro en el libro diario para este mes actual.' : 'Also log an entry in your transactions ledger for the current month.' ?>
+                            <?= current_lang() === 'es' ? 'Crea también el registro en el libro diario para este mes actual y descuenta del saldo de la tarjeta si está vinculada.' : 'Also log an entry in your transactions ledger for the current month and update card balance.' ?>
                         </div>
                     </div>
 

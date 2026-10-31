@@ -40,6 +40,11 @@ foreach ($hostsToTry as $currentHost) {
     }
 }
 
+if ($pdo !== null) {
+    require_once __DIR__ . '/migrate.php';
+    runAutoMigrations($pdo);
+}
+
 if ($pdo === null) {
     // Log the actual error securely
     error_log("Database Connection Error: " . ($lastException ? $lastException->getMessage() : 'Unknown error'));

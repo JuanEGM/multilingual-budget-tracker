@@ -226,6 +226,11 @@ $flashMessage = get_flash();
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link <?= ($currentPage === 'cuentas.php') ? 'active fw-semibold' : '' ?>" href="cuentas.php">
+                            <i class="bi bi-credit-card-2-front me-1"></i> <?= htmlspecialchars(__('nav_accounts')) ?>
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link <?= ($currentPage === 'agregar.php') ? 'active fw-semibold' : '' ?>" href="agregar.php">
                             <i class="bi bi-plus-circle-fill me-1"></i> <?= htmlspecialchars(__('nav_new_tx')) ?>
                         </a>

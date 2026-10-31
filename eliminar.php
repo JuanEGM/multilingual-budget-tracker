@@ -1,7 +1,7 @@
 <?php
 /**
  * Delete Transaction Controller
- * Gestor de Presupuesto Personal y Control de Gastos - Phase 1
+ * Gestor de Presupuesto Personal y Control de Gastos - Phase 1+
  */
 
 declare(strict_types=1);
@@ -25,10 +25,33 @@ if ($id === false || $id <= 0) {
 
 try {
     $pdo = getDB();
-    $stmt = $pdo->prepare("DELETE FROM transacciones WHERE id = :id");
-    $stmt->execute([':id' => $id]);
 
-    if ($stmt->rowCount() > 0) {
+    // 1. Fetch transaction details to reverse account balance if linked
+    $fetchStmt = $pdo->prepare("SELECT id, tipo, monto, cuenta_id FROM transacciones WHERE id = :id");
+    $fetchStmt->execute([':id' => $id]);
+    $tx = $fetchStmt->fetch();
+
+    if ($tx) {
+        $montoFloat = (float) $tx['monto'];
+        $cuentaId = !empty($tx['cuenta_id']) ? (int) $tx['cuenta_id'] : null;
+
+        // If linked to an account/card, reverse the financial impact
+        if ($cuentaId) {
+            if ($tx['tipo'] === 'expense') {
+                // Re-add money back to account
+                $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual + :monto WHERE id = :id")
+                    ->execute([':monto' => $montoFloat, ':id' => $cuentaId]);
+            } elseif ($tx['tipo'] === 'income') {
+                // Deduct money from account
+                $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual - :monto WHERE id = :id")
+                    ->execute([':monto' => $montoFloat, ':id' => $cuentaId]);
+            }
+        }
+
+        // 2. Delete transaction
+        $delStmt = $pdo->prepare("DELETE FROM transacciones WHERE id = :id");
+        $delStmt->execute([':id' => $id]);
+
         set_flash('success', __('msg_success_delete'));
     } else {
         set_flash('warning', __('msg_error_not_found'));
@@ -38,6 +61,7 @@ try {
     set_flash('danger', __('msg_error_delete'));
 }
 
-// Redirect back to dashboard
-header("Location: index.php");
+// Redirect back to referring page or dashboard
+$referer = $_SERVER['HTTP_REFERER'] ?? 'index.php';
+header("Location: " . $referer);
 exit;

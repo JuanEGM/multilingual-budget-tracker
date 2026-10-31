@@ -57,14 +57,30 @@ try {
 }
 
 // -------------------------------------------------------------
-// 3. Fetch All Transactions
+// 3. Fetch Accounts Summary
+// -------------------------------------------------------------
+$totalAccountBalances = 0.0;
+$accountCount = 0;
+try {
+    $accStmt = $pdo->query("SELECT COUNT(*) as cnt, COALESCE(SUM(saldo_actual), 0) as total_balance FROM cuentas");
+    $accData = $accStmt->fetch();
+    $accountCount = (int) ($accData['cnt'] ?? 0);
+    $totalAccountBalances = (float) ($accData['total_balance'] ?? 0);
+} catch (PDOException $e) {
+    error_log("Error fetching accounts: " . $e->getMessage());
+}
+
+// -------------------------------------------------------------
+// 4. Fetch All Transactions with Account Names
 // -------------------------------------------------------------
 $transactions = [];
 try {
     $stmt = $pdo->query("
-        SELECT id, tipo, concepto, monto, categoria, fecha, es_fija, fija_id 
-        FROM transacciones 
-        ORDER BY fecha DESC, id DESC
+        SELECT t.id, t.tipo, t.concepto, t.monto, t.categoria, t.fecha, t.es_fija, t.fija_id, t.cuenta_id, t.metodo_pago,
+               c.nombre AS nombre_cuenta, c.tipo AS tipo_cuenta
+        FROM transacciones t 
+        LEFT JOIN cuentas c ON t.cuenta_id = c.id
+        ORDER BY t.fecha DESC, t.id DESC
     ");
     $transactions = $stmt->fetchAll();
 } catch (PDOException $e) {
@@ -82,6 +98,10 @@ require_once __DIR__ . '/includes/header.php';
         <p class="text-secondary mb-0 small"><?= htmlspecialchars(__('table_subtitle')) ?></p>
     </div>
     <div class="d-flex flex-wrap gap-2">
+        <a href="cuentas.php" class="btn btn-outline-primary d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2 rounded-pill">
+            <i class="bi bi-credit-card-2-front"></i>
+            <span><?= htmlspecialchars(__('nav_accounts')) ?> (<?= htmlspecialchars(format_currency($totalAccountBalances)) ?>)</span>
+        </a>
         <a href="fijas.php" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2 rounded-pill">
             <i class="bi bi-arrow-repeat text-purple"></i>
             <span><?= htmlspecialchars(__('nav_recurring')) ?> (<?= $fixedCount ?>)</span>
@@ -257,6 +277,11 @@ require_once __DIR__ . '/includes/header.php';
                                             </span>
                                         <?php endif; ?>
                                     </div>
+                                    <?php if (!empty($tx['nombre_cuenta'])): ?>
+                                        <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                                            <i class="bi bi-credit-card me-1 text-primary"></i><?= htmlspecialchars($tx['nombre_cuenta']) ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <span class="badge-category">

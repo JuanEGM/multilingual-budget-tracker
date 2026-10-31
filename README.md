@@ -13,7 +13,12 @@ A modern, modular, and lightweight personal finance management web application b
   - Dedicated manager for monthly recurring expenses and income (e.g. Netflix, Spotify, Gym, Rent, Utilities, Fixed Salary).
   - Monthly budget projection (Fixed Income vs Fixed Expenses).
   - 1-click execution: apply individual or all pending monthly subscriptions to the current month's transactions ledger.
-  - Quick toggle to pause or activate subscriptions anytime.
+  - Payment method tagging: **Debit Card**, **Credit Card**, **Bank Transfer**, and **Cash**.
+  - Link subscriptions directly to specific cards or bank accounts.
+- **Bank Accounts & Debit/Credit Cards**:
+  - Track balances across multiple bank accounts, debit cards, credit cards, or cash wallets.
+  - **Manual Balance Adjustments**: easily deposit or withdraw funds with custom notes.
+  - **Projected Remaining Balance**: automatically calculates your card balance minus all active recurring commitments assigned to that card.
 - **Any Transaction Type**:
   - Support for any one-time or recurring transaction with strict server-side validation.
 - **In-App Language Switching (Clean URLs)**:

@@ -13,13 +13,26 @@ $pdo = getDB();
 
 $errors = [];
 $formData = [
-    'tipo'         => 'expense', // sensible default for everyday expenses
-    'concepto'     => '',
-    'monto'        => '',
-    'categoria'    => '',
-    'fecha'        => date('Y-m-d'),
-    'es_recurrente'=> ''
+    'tipo'          => 'expense', // sensible default for everyday expenses
+    'concepto'      => '',
+    'monto'         => '',
+    'categoria'     => '',
+    'fecha'         => date('Y-m-d'),
+    'metodo_pago'   => 'debito',
+    'cuenta_id'     => '0',
+    'es_recurrente' => ''
 ];
+
+// -------------------------------------------------------------
+// Fetch Available Accounts / Cards for Linking
+// -------------------------------------------------------------
+$availableAccounts = [];
+try {
+    $accStmt = $pdo->query("SELECT id, nombre, tipo, saldo_actual FROM cuentas ORDER BY nombre ASC");
+    $availableAccounts = $accStmt->fetchAll();
+} catch (PDOException $e) {
+    error_log("Error fetching accounts: " . $e->getMessage());
+}
 
 // -------------------------------------------------------------
 // Handle POST Form Submission
@@ -31,7 +44,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $formData['monto']         = trim($_POST['monto'] ?? '');
     $formData['categoria']     = trim($_POST['categoria'] ?? '');
     $formData['fecha']         = trim($_POST['fecha'] ?? '');
+    $formData['metodo_pago']   = trim($_POST['metodo_pago'] ?? 'debito');
+    $formData['cuenta_id']     = trim($_POST['cuenta_id'] ?? '0');
     $formData['es_recurrente'] = !empty($_POST['es_recurrente']) ? '1' : '';
+
+    $cuentaIdInt = filter_var($formData['cuenta_id'], FILTER_VALIDATE_INT);
+    if ($cuentaIdInt === false || $cuentaIdInt <= 0) {
+        $cuentaIdInt = null;
+    }
+
+    $validMethods = ['debito', 'credito', 'transferencia', 'efectivo'];
+    if (!in_array($formData['metodo_pago'], $validMethods, true)) {
+        $formData['metodo_pago'] = 'debito';
+    }
 
     // Validation 1: Required fields
     if (
@@ -78,20 +103,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $fijaId = null;
             $esFija = 0;
+            $amountFloat = round((float) $formData['monto'], 2);
 
             // If user checked "Save also as recurring payment / subscription"
             if (!empty($formData['es_recurrente'])) {
                 $dayOfMonth = (int) date('j', strtotime($formData['fecha']));
                 $stmtFija = $pdo->prepare("
-                    INSERT INTO transacciones_fijas (tipo, concepto, monto, categoria, dia_pago, activo, ultima_generacion) 
-                    VALUES (:tipo, :concepto, :monto, :categoria, :dia_pago, 1, :ultima_generacion)
+                    INSERT INTO transacciones_fijas (tipo, concepto, monto, categoria, dia_pago, metodo_pago, cuenta_id, activo, ultima_generacion) 
+                    VALUES (:tipo, :concepto, :monto, :categoria, :dia_pago, :metodo_pago, :cuenta_id, 1, :ultima_generacion)
                 ");
                 $stmtFija->execute([
                     ':tipo'              => $formData['tipo'],
                     ':concepto'          => $formData['concepto'],
-                    ':monto'             => round((float) $formData['monto'], 2),
+                    ':monto'             => $amountFloat,
                     ':categoria'         => $formData['categoria'],
                     ':dia_pago'          => $dayOfMonth,
+                    ':metodo_pago'       => $formData['metodo_pago'],
+                    ':cuenta_id'         => $cuentaIdInt,
                     ':ultima_generacion' => $formData['fecha']
                 ]);
                 $fijaId = (int) $pdo->lastInsertId();
@@ -100,19 +128,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Insert into main transactions ledger
             $stmt = $pdo->prepare("
-                INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id) 
-                VALUES (:tipo, :concepto, :monto, :categoria, :fecha, :es_fija, :fija_id)
+                INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id, cuenta_id, metodo_pago) 
+                VALUES (:tipo, :concepto, :monto, :categoria, :fecha, :es_fija, :fija_id, :cuenta_id, :metodo_pago)
             ");
 
             $stmt->execute([
-                ':tipo'      => $formData['tipo'],
-                ':concepto'  => $formData['concepto'],
-                ':monto'     => round((float) $formData['monto'], 2),
-                ':categoria' => $formData['categoria'],
-                ':fecha'     => $formData['fecha'],
-                ':es_fija'   => $esFija,
-                ':fija_id'   => $fijaId
+                ':tipo'        => $formData['tipo'],
+                ':concepto'    => $formData['concepto'],
+                ':monto'       => $amountFloat,
+                ':categoria'   => $formData['categoria'],
+                ':fecha'       => $formData['fecha'],
+                ':es_fija'     => $esFija,
+                ':fija_id'     => $fijaId,
+                ':cuenta_id'   => $cuentaIdInt,
+                ':metodo_pago' => $formData['metodo_pago']
             ]);
+
+            // Deduct from or add to account balance if an account/card is selected
+            if ($cuentaIdInt) {
+                if ($formData['tipo'] === 'expense') {
+                    $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual - :monto WHERE id = :id")
+                        ->execute([':monto' => $amountFloat, ':id' => $cuentaIdInt]);
+                } else {
+                    $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual + :monto WHERE id = :id")
+                        ->execute([':monto' => $amountFloat, ':id' => $cuentaIdInt]);
+                }
+            }
 
             set_flash('success', __('msg_success_add'));
             header("Location: index.php");
@@ -288,6 +329,35 @@ require_once __DIR__ . '/includes/header.php';
                         </div>
                     </div>
 
+                    <!-- Payment Method & Link to Account / Card -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-sm-6">
+                            <label for="metodo_pago" class="form-label fw-semibold small text-secondary">
+                                <?= htmlspecialchars(__('form_field_payment_method')) ?> <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" id="metodo_pago" name="metodo_pago" required>
+                                <option value="debito" <?= ($formData['metodo_pago'] === 'debito') ? 'selected' : '' ?>><?= htmlspecialchars(__('method_debito')) ?></option>
+                                <option value="credito" <?= ($formData['metodo_pago'] === 'credito') ? 'selected' : '' ?>><?= htmlspecialchars(__('method_credito')) ?></option>
+                                <option value="transferencia" <?= ($formData['metodo_pago'] === 'transferencia') ? 'selected' : '' ?>><?= htmlspecialchars(__('method_transferencia')) ?></option>
+                                <option value="efectivo" <?= ($formData['metodo_pago'] === 'efectivo') ? 'selected' : '' ?>><?= htmlspecialchars(__('method_efectivo')) ?></option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-sm-6">
+                            <label for="cuenta_id" class="form-label fw-semibold small text-secondary">
+                                <?= htmlspecialchars(__('form_field_link_account')) ?>
+                            </label>
+                            <select class="form-select" id="cuenta_id" name="cuenta_id">
+                                <option value="0"><?= htmlspecialchars(__('option_no_account')) ?></option>
+                                <?php foreach ($availableAccounts as $acc): ?>
+                                    <option value="<?= (int) $acc['id'] ?>" <?= ((string)$formData['cuenta_id'] === (string)$acc['id']) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($acc['nombre']) ?> (<?= htmlspecialchars(format_currency((float) $acc['saldo_actual'])) ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+
                     <!-- Category (With Datalist for typing or quick picking) -->
                     <div class="mb-3">
                         <label for="categoria" class="form-label fw-semibold small text-secondary">
@@ -312,9 +382,6 @@ require_once __DIR__ . '/includes/header.php';
                                     <option value="<?= htmlspecialchars($cat) ?>"></option>
                                 <?php endforeach; ?>
                             </datalist>
-                        </div>
-                        <div class="form-text small">
-                            <?= htmlspecialchars(__('form_select_category')) ?>
                         </div>
                     </div>
 
