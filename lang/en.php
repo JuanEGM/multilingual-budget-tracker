@@ -57,8 +57,8 @@ return [
     'msg_account_created'            => 'Account / Card created successfully!',
     'msg_balance_updated'            => 'Account balance updated successfully!',
     'msg_account_deleted'            => 'Account removed successfully.',
-    'linked_fixed_items'             => 'Linked Subscriptions & Fixed Expenses',
-    'no_linked_fixed_items'          => 'No fixed expenses currently linked to this card.',
+    'linked_fixed_items'             => 'Linked Recurring Commitments',
+    'no_linked_fixed_items'          => 'No recurring commitments currently linked to this card/account.',
 
     // Fixed & Subscriptions Cards
     'recurring_title'            => 'Monthly Fixed Payments & Subscriptions',

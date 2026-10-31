@@ -170,7 +170,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // -------------------------------------------------------------
 $accounts = [];
 $totalAllBalances = 0.0;
-$totalAllLinkedFixed = 0.0;
+$totalAllLinkedFixedExpenses = 0.0;
+$totalAllLinkedFixedIncome = 0.0;
 
 try {
     $stmt = $pdo->query("SELECT * FROM cuentas ORDER BY id ASC");
@@ -181,7 +182,7 @@ try {
         $currentBalance = (float) $acc['saldo_actual'];
         $totalAllBalances += $currentBalance;
 
-        // Fetch monthly active fixed expenses linked to this card/account
+        // Fetch monthly active fixed items linked to this card/account
         $fixedStmt = $pdo->prepare("
             SELECT id, tipo, concepto, monto, categoria, dia_pago 
             FROM transacciones_fijas 
@@ -201,9 +202,10 @@ try {
             }
         }
 
-        $totalAllLinkedFixed += $linkedExpenses;
+        $totalAllLinkedFixedExpenses += $linkedExpenses;
+        $totalAllLinkedFixedIncome   += $linkedIncome;
 
-        // Projected remaining balance on this card/account after covering linked fixed monthly expenses
+        // Projected remaining balance on this card/account after covering linked fixed monthly expenses and income
         $remainingBalance = $currentBalance - $linkedExpenses + $linkedIncome;
 
         $acc['linked_fixed_items'] = $linkedFixedItems;
@@ -237,7 +239,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Total Summary Across All Accounts Banner -->
 <div class="row g-3 mb-4">
-    <div class="col-12 col-md-6">
+    <div class="col-12 col-md-4">
         <div class="card card-stat h-100 p-3 border-start border-4 border-primary">
             <div class="d-flex justify-content-between align-items-center mb-1">
                 <span class="text-uppercase fw-semibold text-secondary small"><?= htmlspecialchars(__('total_liquid_balance')) ?></span>
@@ -253,19 +255,35 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-6">
+    <div class="col-12 col-md-4">
         <div class="card card-stat h-100 p-3 border-start border-4 border-danger">
             <div class="d-flex justify-content-between align-items-center mb-1">
-                <span class="text-uppercase fw-semibold text-secondary small"><?= htmlspecialchars(__('card_linked_monthly_expenses')) ?> (Total)</span>
+                <span class="text-uppercase fw-semibold text-secondary small"><?= htmlspecialchars(__('card_linked_monthly_expenses')) ?></span>
                 <span class="icon-bubble icon-bubble-expense">
-                    <i class="bi bi-arrow-repeat"></i>
+                    <i class="bi bi-arrow-up-right"></i>
                 </span>
             </div>
             <div class="h2 fw-bold text-danger mb-0">
-                -<?= htmlspecialchars(format_currency($totalAllLinkedFixed)) ?>
+                -<?= htmlspecialchars(format_currency($totalAllLinkedFixedExpenses)) ?>
             </div>
             <div class="small text-muted mt-1">
-                <i class="bi bi-calendar-month me-1"></i><?= current_lang() === 'es' ? 'Compromisos mensuales recurrentes asignados' : 'Monthly recurring commitments assigned' ?>
+                <i class="bi bi-calendar-month me-1"></i><?= current_lang() === 'es' ? 'Gastos mensuales recurrentes asignados' : 'Monthly recurring expenses assigned' ?>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card card-stat h-100 p-3 border-start border-4 border-success">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="text-uppercase fw-semibold text-secondary small"><?= htmlspecialchars(__('card_fixed_income')) ?></span>
+                <span class="icon-bubble icon-bubble-income">
+                    <i class="bi bi-arrow-down-left"></i>
+                </span>
+            </div>
+            <div class="h2 fw-bold text-success mb-0">
+                +<?= htmlspecialchars(format_currency($totalAllLinkedFixedIncome)) ?>
+            </div>
+            <div class="small text-muted mt-1">
+                <i class="bi bi-calendar-check me-1"></i><?= current_lang() === 'es' ? 'Ingresos mensuales recurrentes asignados' : 'Monthly recurring income assigned' ?>
             </div>
         </div>
     </div>
@@ -367,9 +385,15 @@ require_once __DIR__ . '/../includes/header.php';
                         <!-- Linked Monthly Commitments Calculation -->
                         <div class="p-2.5 bg-light rounded-3 border mb-3">
                             <div class="d-flex justify-content-between align-items-center small text-secondary mb-1">
-                                <span><i class="bi bi-arrow-repeat me-1 text-danger"></i><?= htmlspecialchars(__('card_linked_monthly_expenses')) ?>:</span>
+                                <span><i class="bi bi-arrow-up-right me-1 text-danger"></i><?= htmlspecialchars(__('card_linked_monthly_expenses')) ?>:</span>
                                 <span class="fw-semibold text-danger">-<?= htmlspecialchars(format_currency((float) $acc['linked_expenses'])) ?></span>
                             </div>
+                            <?php if ($acc['linked_income'] > 0): ?>
+                                <div class="d-flex justify-content-between align-items-center small text-secondary mb-1">
+                                    <span><i class="bi bi-arrow-down-left me-1 text-success"></i><?= htmlspecialchars(__('card_fixed_income')) ?>:</span>
+                                    <span class="fw-semibold text-success">+<?= htmlspecialchars(format_currency((float) $acc['linked_income'])) ?></span>
+                                </div>
+                            <?php endif; ?>
                             <hr class="my-1.5 opacity-25">
                             <div class="d-flex justify-content-between align-items-center">
                                 <span class="small fw-semibold text-dark">
@@ -384,7 +408,7 @@ require_once __DIR__ . '/../includes/header.php';
                             </div>
                         </div>
 
-                        <!-- Linked Subscriptions Preview -->
+                        <!-- Linked Subscriptions & Fixed Items Preview -->
                         <div>
                             <span class="text-muted small fw-semibold d-block mb-1" style="font-size: 0.75rem;">
                                 <?= htmlspecialchars(__('linked_fixed_items')) ?> (<?= count($acc['linked_fixed_items']) ?>):
@@ -397,12 +421,23 @@ require_once __DIR__ . '/../includes/header.php';
                                 <div class="d-flex flex-column gap-1">
                                     <?php foreach ($acc['linked_fixed_items'] as $item): ?>
                                         <div class="d-flex justify-content-between align-items-center small bg-white px-2 py-1 rounded border">
-                                            <span class="text-truncate text-slate-700" style="max-width: 160px;">
-                                                <?= htmlspecialchars($item['concepto']) ?>
+                                            <span class="text-truncate text-slate-700 d-inline-flex align-items-center gap-1" style="max-width: 160px;">
+                                                <?php if ($item['tipo'] === 'income'): ?>
+                                                    <i class="bi bi-arrow-down-left text-success" title="<?= htmlspecialchars(__('type_income')) ?>"></i>
+                                                <?php else: ?>
+                                                    <i class="bi bi-arrow-up-right text-danger" title="<?= htmlspecialchars(__('type_expense')) ?>"></i>
+                                                <?php endif; ?>
+                                                <span class="text-truncate"><?= htmlspecialchars($item['concepto']) ?></span>
                                             </span>
-                                            <span class="fw-semibold text-danger small">
-                                                -<?= htmlspecialchars(format_currency((float) $item['monto'])) ?>
-                                            </span>
+                                            <?php if ($item['tipo'] === 'income'): ?>
+                                                <span class="fw-semibold text-success small">
+                                                    +<?= htmlspecialchars(format_currency((float) $item['monto'])) ?>
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="fw-semibold text-danger small">
+                                                    -<?= htmlspecialchars(format_currency((float) $item['monto'])) ?>
+                                                </span>
+                                            <?php endif; ?>
                                         </div>
                                     <?php endforeach; ?>
                                 </div>

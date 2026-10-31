@@ -57,8 +57,8 @@ return [
     'msg_account_created'            => '¡Cuenta o tarjeta creada con éxito!',
     'msg_balance_updated'            => '¡Saldo de la cuenta actualizado con éxito!',
     'msg_account_deleted'            => 'Cuenta o tarjeta eliminada con éxito.',
-    'linked_fixed_items'             => 'Suscripciones y Gastos Fijos Vinculados',
-    'no_linked_fixed_items'          => 'No hay gastos fijos vinculados actualmente a esta tarjeta.',
+    'linked_fixed_items'             => 'Compromisos Fijos Vinculados',
+    'no_linked_fixed_items'          => 'No hay compromisos fijos vinculados actualmente a esta tarjeta/cuenta.',
 
     // Tarjetas y Textos de Pagos Fijos y Suscripciones
     'recurring_title'            => 'Pagos Fijos Mensuales y Suscripciones',
