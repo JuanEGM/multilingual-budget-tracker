@@ -32,8 +32,8 @@ if %ERRORLEVEL% equ 0 (
     echo ====================================================
     echo   [EXITO] Base de datos importada correctamente!
     echo   - Base de datos: gestor_financiero
-    echo   - Tablas: transacciones, transacciones_fijas
-    echo   - Datos de prueba cargados
+    echo   - Tablas: transacciones, transacciones_fijas (vacias y listas)
+    echo   - Sin datos de prueba cargados
     echo ====================================================
 ) else (
     echo.
