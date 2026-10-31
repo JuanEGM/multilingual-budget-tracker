@@ -1,7 +1,7 @@
 <?php
 /**
  * Database Connection via PDO
- * Gestor de Presupuesto Personal y Control de Gastos - Phase 1
+ * Gestor de Presupuesto Personal y Control de Gastos - Phase 1+
  * 
  * Provides a secure, persistent connection instance configured
  * with strict error modes and prepared statements.
@@ -18,8 +18,6 @@ $dbUser    = getenv('DB_USER') ?: 'root';
 $dbPass    = getenv('DB_PASS') !== false ? getenv('DB_PASS') : '';
 $dbCharset = 'utf8mb4';
 
-$dsn = "mysql:host={$dbHost};port={$dbPort};dbname={$dbName};charset={$dbCharset}";
-
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -27,11 +25,24 @@ $options = [
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES {$dbCharset} COLLATE utf8mb4_unicode_ci"
 ];
 
-try {
-    $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
-} catch (PDOException $e) {
+// Try preferred host (127.0.0.1) and fallback to 'localhost' if needed
+$hostsToTry = array_unique([$dbHost, '127.0.0.1', 'localhost']);
+$pdo = null;
+$lastException = null;
+
+foreach ($hostsToTry as $currentHost) {
+    try {
+        $dsn = "mysql:host={$currentHost};port={$dbPort};dbname={$dbName};charset={$dbCharset}";
+        $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
+        break; // Connected successfully
+    } catch (PDOException $e) {
+        $lastException = $e;
+    }
+}
+
+if ($pdo === null) {
     // Log the actual error securely
-    error_log("Database Connection Error: " . $e->getMessage());
+    error_log("Database Connection Error: " . ($lastException ? $lastException->getMessage() : 'Unknown error'));
 
     // Display a user-friendly message
     http_response_code(500);
@@ -57,11 +68,11 @@ try {
                                 Unable to establish a connection with MySQL/MariaDB.
                             </p>
                             <div class="alert alert-warning">
-                                <strong>Tip:</strong> Ensure your MySQL service (e.g. XAMPP/WAMP/Laragon) is running and that you have imported <code>schema.sql</code>.
+                                <strong>Tip:</strong> Ensure your MySQL service (e.g. XAMPP) is running and that you have imported <code>schema.sql</code>.
                             </div>
                             <details class="text-muted small">
                                 <summary>Technical Details</summary>
-                                <pre class="mt-2 p-2 bg-light border rounded"><?= htmlspecialchars($e->getMessage()) ?></pre>
+                                <pre class="mt-2 p-2 bg-light border rounded"><?= htmlspecialchars($lastException ? $lastException->getMessage() : '') ?></pre>
                             </details>
                         </div>
                     </div>

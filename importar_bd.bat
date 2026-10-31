@@ -27,19 +27,25 @@ if "%MYSQL_BIN%"=="" (
 echo Importando schema.sql en MySQL...
 "%MYSQL_BIN%" -u root < "%~dp0schema.sql"
 
-if %ERRORLEVEL% equ 0 (
-    echo.
-    echo ====================================================
-    echo   [EXITO] Base de datos importada correctamente!
-    echo   - Base de datos: gestor_financiero
-    echo   - Tablas: transacciones, transacciones_fijas (vacias y listas)
-    echo   - Sin datos de prueba cargados
-    echo ====================================================
-) else (
-    echo.
-    echo [ERROR] No se pudo importar. 
-    echo Asegurate de haber iniciado MySQL en el panel de XAMPP.
-)
+if errorlevel 1 goto error_import
+
+echo.
+echo ====================================================
+echo   [EXITO] Base de datos importada correctamente!
+echo   - Base de datos: gestor_financiero
+echo   - Tablas: transacciones y transacciones_fijas listas
+echo   - Sin datos de prueba cargados
+echo ====================================================
+echo.
+pause
+exit /b 0
+
+:error_import
+echo.
+echo ====================================================
+echo   [ERROR] No se pudo importar. 
+echo   Asegurate de haber iniciado MySQL en el panel de XAMPP.
+echo ====================================================
 
 echo.
 pause
