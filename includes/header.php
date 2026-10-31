@@ -199,7 +199,7 @@ $flashMessage = get_flash();
     <!-- Navigation Bar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm py-2">
         <div class="container">
-            <a class="navbar-brand navbar-brand-custom d-flex align-items-center gap-2" href="index.php">
+            <a class="navbar-brand navbar-brand-custom d-flex align-items-center gap-2" href="<?= htmlspecialchars(app_url('index.php')) ?>">
                 <span class="navbar-brand-icon">
                     <i class="bi bi-wallet2"></i>
                 </span>
@@ -216,22 +216,22 @@ $flashMessage = get_flash();
             <div class="collapse navbar-collapse" id="mainNavbar">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3">
                     <li class="nav-item">
-                        <a class="nav-link <?= ($currentPage === 'index.php') ? 'active fw-semibold' : '' ?>" href="index.php">
+                        <a class="nav-link <?= ($currentPage === 'index.php') ? 'active fw-semibold' : '' ?>" href="<?= htmlspecialchars(app_url('index.php')) ?>">
                             <i class="bi bi-grid-1x2-fill me-1"></i> <?= htmlspecialchars(__('nav_dashboard')) ?>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?= ($currentPage === 'fijas.php') ? 'active fw-semibold' : '' ?>" href="fijas.php">
+                        <a class="nav-link <?= ($currentPage === 'fijas.php') ? 'active fw-semibold' : '' ?>" href="<?= htmlspecialchars(app_url('pages/fijas.php')) ?>">
                             <i class="bi bi-arrow-repeat me-1"></i> <?= htmlspecialchars(__('nav_recurring')) ?>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?= ($currentPage === 'cuentas.php') ? 'active fw-semibold' : '' ?>" href="cuentas.php">
+                        <a class="nav-link <?= ($currentPage === 'cuentas.php') ? 'active fw-semibold' : '' ?>" href="<?= htmlspecialchars(app_url('pages/cuentas.php')) ?>">
                             <i class="bi bi-credit-card-2-front me-1"></i> <?= htmlspecialchars(__('nav_accounts')) ?>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?= ($currentPage === 'agregar.php') ? 'active fw-semibold' : '' ?>" href="agregar.php">
+                        <a class="nav-link <?= ($currentPage === 'agregar.php') ? 'active fw-semibold' : '' ?>" href="<?= htmlspecialchars(app_url('pages/agregar.php')) ?>">
                             <i class="bi bi-plus-circle-fill me-1"></i> <?= htmlspecialchars(__('nav_new_tx')) ?>
                         </a>
                     </li>
@@ -247,7 +247,7 @@ $flashMessage = get_flash();
                         <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2 p-1" aria-labelledby="langDropdown">
                             <li><h6 class="dropdown-header small text-uppercase"><?= htmlspecialchars(__('nav_language')) ?></h6></li>
                             <li>
-                                <form method="POST" action="cambiar_idioma.php" class="m-0 p-0 lang-switch-form">
+                                <form method="POST" action="<?= htmlspecialchars(app_url('controllers/cambiar_idioma.php')) ?>" class="m-0 p-0 lang-switch-form">
                                     <input type="hidden" name="lang" value="en">
                                     <button type="submit" class="dropdown-item d-flex align-items-center justify-content-between py-2 rounded-2 <?= ($activeLang === 'en') ? 'lang-active bg-light' : '' ?>">
                                         <span>🇺🇸 <?= htmlspecialchars(__('lang_en')) ?></span>
@@ -258,7 +258,7 @@ $flashMessage = get_flash();
                                 </form>
                             </li>
                             <li>
-                                <form method="POST" action="cambiar_idioma.php" class="m-0 p-0 lang-switch-form">
+                                <form method="POST" action="<?= htmlspecialchars(app_url('controllers/cambiar_idioma.php')) ?>" class="m-0 p-0 lang-switch-form">
                                     <input type="hidden" name="lang" value="es">
                                     <button type="submit" class="dropdown-item d-flex align-items-center justify-content-between py-2 rounded-2 <?= ($activeLang === 'es') ? 'lang-active bg-light' : '' ?>">
                                         <span>🇪🇸 <?= htmlspecialchars(__('lang_es')) ?></span>
@@ -271,7 +271,7 @@ $flashMessage = get_flash();
                         </ul>
                     </div>
 
-                    <a href="agregar.php" class="btn btn-sm btn-primary rounded-pill px-3 py-1.5 shadow-sm d-none d-sm-inline-flex align-items-center gap-1">
+                    <a href="<?= htmlspecialchars(app_url('pages/agregar.php')) ?>" class="btn btn-sm btn-primary rounded-pill px-3 py-1.5 shadow-sm d-none d-sm-inline-flex align-items-center gap-1">
                         <i class="bi bi-plus-lg"></i>
                         <span><?= htmlspecialchars(__('nav_new_tx')) ?></span>
                     </a>

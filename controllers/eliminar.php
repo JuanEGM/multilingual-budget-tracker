@@ -6,8 +6,8 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/config/db.php';
-require_once __DIR__ . '/helpers/lang.php';
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../helpers/lang.php';
 
 // Accept ID via POST (preferred) or GET (fallback)
 $id = 0;
@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
 
 if ($id === false || $id <= 0) {
     set_flash('danger', __('msg_error_delete'));
-    header("Location: index.php");
+    header("Location: " . ($_SERVER['HTTP_REFERER'] ?? '../index.php'));
     exit;
 }
 
@@ -62,6 +62,6 @@ try {
 }
 
 // Redirect back to referring page or dashboard
-$referer = $_SERVER['HTTP_REFERER'] ?? 'index.php';
+$referer = $_SERVER['HTTP_REFERER'] ?? '../index.php';
 header("Location: " . $referer);
 exit;

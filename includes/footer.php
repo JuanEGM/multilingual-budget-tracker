@@ -32,7 +32,7 @@ require_once __DIR__ . '/../helpers/lang.php';
                     <button type="button" class="btn btn-sm btn-outline-secondary px-3 rounded-pill" data-bs-dismiss="modal">
                         <?= htmlspecialchars(__('btn_cancel')) ?>
                     </button>
-                    <form id="deleteForm" method="POST" action="eliminar.php" class="d-inline">
+                    <form id="deleteForm" method="POST" action="<?= htmlspecialchars(app_url('controllers/eliminar.php')) ?>" class="d-inline">
                         <input type="hidden" name="id" id="deleteModalId" value="">
                         <button type="submit" class="btn btn-sm btn-danger px-3 rounded-pill">
                             <i class="bi bi-trash3-fill me-1"></i>
@@ -83,7 +83,8 @@ require_once __DIR__ . '/../helpers/lang.php';
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 const formData = new FormData(this);
-                fetch('cambiar_idioma.php', {
+                const targetAction = this.getAttribute('action');
+                fetch(targetAction, {
                     method: 'POST',
                     body: formData,
                     headers: {

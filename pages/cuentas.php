@@ -6,8 +6,8 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/config/db.php';
-require_once __DIR__ . '/helpers/lang.php';
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../helpers/lang.php';
 
 $pdo = getDB();
 
@@ -218,7 +218,7 @@ try {
 }
 
 $pageTitle = __('accounts_title');
-require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <!-- Header Section -->
@@ -611,4 +611,4 @@ require_once __DIR__ . '/includes/header.php';
     }
 </script>
 
-<?php require_once __DIR__ . '/includes/footer.php'; ?>
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>

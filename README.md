@@ -55,9 +55,9 @@ C:\xampp\htdocs\gestor-financiero
    http://localhost/phpmyadmin
    ```
 2. In the top navigation bar, click on **Import** (or click **New** on the left sidebar, name the database `gestor_financiero`, and then go to Import).
-3. Click **Choose File** (Seleccionar archivo) and select [`schema.sql`](schema.sql) from:
+3. Click **Choose File** (Seleccionar archivo) and select [`database/schema.sql`](database/schema.sql) from:
    ```text
-   C:\xampp\htdocs\gestor-financiero\schema.sql
+   C:\xampp\htdocs\gestor-financiero\database\schema.sql
    ```
 4. Scroll to the bottom and click **Import** (or **Go / Continuar**).
 5. phpMyAdmin will execute the script and create:
@@ -104,23 +104,32 @@ The application updates the session and reloads cleanly **without modifying the 
 
 ```text
 ├── config/
-│   └── db.php            # Secure PDO database connection
+│   └── db.php                  # Secure PDO database connection
+├── controllers/
+│   ├── cambiar_idioma.php      # Clean in-app language switcher controller (POST/AJAX)
+│   └── eliminar.php            # Controller to delete transactions safely
+├── database/
+│   └── schema.sql              # MySQL schema (tables: transacciones, transacciones_fijas, cuentas)
 ├── helpers/
-│   └── lang.php          # i18n logic, session handling & helper utilities
+│   └── lang.php                # i18n logic, app_url helper, session & formatting utilities
 ├── includes/
-│   ├── header.php        # Reusable navbar, styling & in-app language switcher
-│   └── footer.php        # Reusable footer, modal & AJAX handlers
+│   ├── header.php              # Reusable navbar, styling & in-app language switcher
+│   └── footer.php              # Reusable footer, modal & AJAX handlers
 ├── lang/
-│   ├── en.php            # English dictionary (default)
-│   └── es.php            # Spanish dictionary
-├── .gitignore            # Git exclusion rules
-├── agregar.php           # Form to register transactions (one-time or recurring)
-├── cambiar_idioma.php    # Clean in-app language switcher controller (POST/AJAX)
-├── eliminar.php          # Controller to delete transactions safely
-├── fijas.php             # Subscriptions & monthly fixed payments manager
-├── index.php             # Main dashboard (summary cards & ledger)
-├── README.md             # Documentation & getting started guide
-└── schema.sql            # MySQL schema with tables & sample data
+│   ├── en.php                  # English dictionary (default)
+│   └── es.php                  # Spanish dictionary
+├── pages/
+│   ├── agregar.php             # Form to register transactions (one-time or recurring)
+│   ├── cuentas.php             # Bank accounts & credit/debit cards manager
+│   └── fijas.php               # Subscriptions & monthly fixed payments manager
+├── scripts/
+│   ├── importar_bd.bat         # Automated MySQL database importer
+│   └── iniciar.bat             # Automated local PHP development server launcher
+├── .gitignore                  # Git exclusion rules
+├── importar_bd.bat             # 1-Click root launcher to import database
+├── iniciar.bat                 # 1-Click root launcher to start application
+├── index.php                   # Main dashboard (summary cards & ledger)
+└── README.md                   # Documentation & getting started guide
 ```
 
 ---

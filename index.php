@@ -98,15 +98,15 @@ require_once __DIR__ . '/includes/header.php';
         <p class="text-secondary mb-0 small"><?= htmlspecialchars(__('table_subtitle')) ?></p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <a href="cuentas.php" class="btn btn-outline-primary d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2 rounded-pill">
+        <a href="<?= htmlspecialchars(app_url('pages/cuentas.php')) ?>" class="btn btn-outline-primary d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2 rounded-pill">
             <i class="bi bi-credit-card-2-front"></i>
             <span><?= htmlspecialchars(__('nav_accounts')) ?> (<?= htmlspecialchars(format_currency($totalAccountBalances)) ?>)</span>
         </a>
-        <a href="fijas.php" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2 rounded-pill">
+        <a href="<?= htmlspecialchars(app_url('pages/fijas.php')) ?>" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2 rounded-pill">
             <i class="bi bi-arrow-repeat text-purple"></i>
             <span><?= htmlspecialchars(__('nav_recurring')) ?> (<?= $fixedCount ?>)</span>
         </a>
-        <a href="agregar.php" class="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2 rounded-pill">
+        <a href="<?= htmlspecialchars(app_url('pages/agregar.php')) ?>" class="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2 rounded-pill">
             <i class="bi bi-plus-circle-fill"></i>
             <span><?= htmlspecialchars(__('nav_new_tx')) ?></span>
         </a>
@@ -203,7 +203,7 @@ require_once __DIR__ . '/includes/header.php';
                     </small>
                 </div>
             </div>
-            <a href="fijas.php" class="btn btn-sm btn-outline-primary rounded-pill px-3 align-self-start align-self-sm-center">
+            <a href="<?= htmlspecialchars(app_url('pages/fijas.php')) ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3 align-self-start align-self-sm-center">
                 <?= current_lang() === 'es' ? 'Ver Suscripciones' : 'View Subscriptions' ?> <i class="bi bi-arrow-right ms-1"></i>
             </a>
         </div>
@@ -218,7 +218,7 @@ require_once __DIR__ . '/includes/header.php';
             <small class="text-muted"><?= count($transactions) ?> <?= strtolower(htmlspecialchars(__('table_title'))) ?></small>
         </div>
         <?php if (!empty($transactions)): ?>
-            <a href="agregar.php" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+            <a href="<?= htmlspecialchars(app_url('pages/agregar.php')) ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3">
                 <i class="bi bi-plus-lg me-1"></i><?= htmlspecialchars(__('nav_new_tx')) ?>
             </a>
         <?php endif; ?>
@@ -235,7 +235,7 @@ require_once __DIR__ . '/includes/header.php';
                 <p class="text-secondary small mb-4 mx-auto" style="max-width: 420px;">
                     <?= htmlspecialchars(__('empty_subtitle')) ?>
                 </p>
-                <a href="agregar.php" class="btn btn-primary rounded-pill px-4 shadow-sm">
+                <a href="<?= htmlspecialchars(app_url('pages/agregar.php')) ?>" class="btn btn-primary rounded-pill px-4 shadow-sm">
                     <i class="bi bi-plus-lg me-1"></i><?= htmlspecialchars(__('btn_add_first')) ?>
                 </a>
             </div>

@@ -147,3 +147,18 @@ function get_flash(): ?array
     }
     return null;
 }
+
+/**
+ * Generates an appropriate relative URL to a resource from anywhere in the application
+ * (Works cleanly both from root scripts like index.php and from subfolders like pages/ or controllers/)
+ * 
+ * @param string $path Target path relative to project root (e.g. 'pages/cuentas.php', 'index.php')
+ * @return string
+ */
+function app_url(string $path = ''): string
+{
+    $currentScript = $_SERVER['PHP_SELF'] ?? '/index.php';
+    $dirName = basename(dirname($currentScript));
+    $prefix = ($dirName === 'pages' || $dirName === 'controllers') ? '../' : '';
+    return $prefix . ltrim($path, '/');
+}

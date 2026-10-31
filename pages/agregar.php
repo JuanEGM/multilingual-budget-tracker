@@ -6,8 +6,8 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/config/db.php';
-require_once __DIR__ . '/helpers/lang.php';
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../helpers/lang.php';
 
 $pdo = getDB();
 
@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             set_flash('success', __('msg_success_add'));
-            header("Location: index.php");
+            header("Location: " . app_url('index.php'));
             exit;
         } catch (PDOException $e) {
             error_log("Database Insert Error: " . $e->getMessage());
@@ -181,7 +181,7 @@ $presetCategories = [
 ];
 
 $pageTitle = __('form_title');
-require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="row justify-content-center">
@@ -189,7 +189,7 @@ require_once __DIR__ . '/includes/header.php';
         
         <!-- Navigation breadcrumb / Back link -->
         <div class="mb-3">
-            <a href="index.php" class="text-decoration-none text-secondary small d-inline-flex align-items-center gap-1">
+            <a href="<?= htmlspecialchars(app_url('index.php')) ?>" class="text-decoration-none text-secondary small d-inline-flex align-items-center gap-1">
                 <i class="bi bi-arrow-left"></i>
                 <span><?= htmlspecialchars(__('btn_back')) ?></span>
             </a>
@@ -407,7 +407,7 @@ require_once __DIR__ . '/includes/header.php';
 
                     <!-- Actions Buttons -->
                     <div class="d-flex justify-content-end align-items-center gap-2 pt-2 border-top">
-                        <a href="index.php" class="btn btn-light px-4 text-secondary rounded-pill">
+                        <a href="<?= htmlspecialchars(app_url('index.php')) ?>" class="btn btn-light px-4 text-secondary rounded-pill">
                             <?= htmlspecialchars(__('btn_cancel')) ?>
                         </a>
                         <button type="submit" class="btn btn-primary px-4 rounded-pill shadow-sm d-inline-flex align-items-center gap-2">
@@ -424,4 +424,4 @@ require_once __DIR__ . '/includes/header.php';
     </div>
 </div>
 
-<?php require_once __DIR__ . '/includes/footer.php'; ?>
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>

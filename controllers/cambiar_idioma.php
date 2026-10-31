@@ -55,9 +55,14 @@ if ($isAjax) {
 }
 
 // Clean redirect to referer without any ?lang= parameters
-$referer = $_SERVER['HTTP_REFERER'] ?? 'index.php';
-$parsed = parse_url($referer);
-$targetPath = $parsed['path'] ?? 'index.php';
+$referer = $_SERVER['HTTP_REFERER'] ?? '';
+if (!empty($referer)) {
+    $parsed = parse_url($referer);
+    $targetPath = $parsed['path'] ?? '../index.php';
+} else {
+    $targetPath = '../index.php';
+    $parsed = [];
+}
 
 // Preserve other query parameters if any (excluding 'lang')
 $queryString = '';
