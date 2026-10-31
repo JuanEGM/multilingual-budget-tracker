@@ -1,0 +1,170 @@
+<?php
+/**
+ * Internationalization (i18n) & Helper Utilities
+ * Gestor de Presupuesto Personal y Control de Gastos
+ */
+
+declare(strict_types=1);
+
+// Ensure PHP session is active for tracking language & flash messages
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+/**
+ * Supported language codes
+ */
+const SUPPORTED_LANGS = ['en', 'es'];
+const DEFAULT_LANG = 'en';
+
+/**
+ * Handle language switching via GET parameter and persist in Session
+ */
+if (isset($_GET['lang']) && in_array($_GET['lang'], SUPPORTED_LANGS, true)) {
+    $_SESSION['lang'] = $_GET['lang'];
+}
+
+// Fallback to default if no session language is set
+if (!isset($_SESSION['lang']) || !in_array($_SESSION['lang'], SUPPORTED_LANGS, true)) {
+    $_SESSION['lang'] = DEFAULT_LANG;
+}
+
+/**
+ * Retrieve current active language code ('en' or 'es')
+ * 
+ * @return string
+ */
+function current_lang(): string
+{
+    return $_SESSION['lang'] ?? DEFAULT_LANG;
+}
+
+/**
+ * Load dictionary for a specific language with static caching
+ * 
+ * @param string $lang
+ * @return array
+ */
+function load_language_dict(string $lang): array
+{
+    static $dictionaries = [];
+
+    if (!isset($dictionaries[$lang])) {
+        $filePath = dirname(__DIR__) . "/lang/{$lang}.php";
+        if (file_exists($filePath)) {
+            $dictionaries[$lang] = require $filePath;
+        } else {
+            $dictionaries[$lang] = [];
+        }
+    }
+
+    return $dictionaries[$lang];
+}
+
+/**
+ * Translate a key into the active language
+ * 
+ * @param string $key Dictionary key
+ * @param array $replacements Key-value pairs for placeholders (e.g. [':count' => 5])
+ * @return string Translated string or key name if missing
+ */
+function __(string $key, array $replacements = []): string
+{
+    $current = current_lang();
+    $dict = load_language_dict($current);
+
+    // Fallback to English dictionary if key is not found in current language
+    if (!isset($dict[$key]) && $current !== DEFAULT_LANG) {
+        $fallbackDict = load_language_dict(DEFAULT_LANG);
+        $text = $fallbackDict[$key] ?? $key;
+    } else {
+        $text = $dict[$key] ?? $key;
+    }
+
+    // Replace optional placeholders
+    if (!empty($replacements)) {
+        foreach ($replacements as $placeholder => $value) {
+            $text = str_replace($placeholder, (string)$value, $text);
+        }
+    }
+
+    return $text;
+}
+
+/**
+ * Formats a decimal amount into a currency string
+ * 
+ * @param float $amount
+ * @param string|null $currencySymbol
+ * @return string
+ */
+function format_currency(float $amount, string $currencySymbol = '$'): string
+{
+    return $currencySymbol . ' ' . number_format($amount, 2, '.', ',');
+}
+
+/**
+ * Formats a YYYY-MM-DD date string according to active language
+ * 
+ * @param string $dateStr
+ * @return string
+ */
+function format_date(string $dateStr): string
+{
+    $timestamp = strtotime($dateStr);
+    if (!$timestamp) {
+        return htmlspecialchars($dateStr);
+    }
+
+    if (current_lang() === 'es') {
+        // e.g. 21/10/2026
+        return date('d/m/Y', $timestamp);
+    }
+
+    // Default English e.g. Oct 21, 2026
+    return date('M d, Y', $timestamp);
+}
+
+/**
+ * Flash message helper: set message
+ * 
+ * @param string $type ('success' | 'danger' | 'warning' | 'info')
+ * @param string $message
+ * @return void
+ */
+function set_flash(string $type, string $message): void
+{
+    $_SESSION['flash'] = [
+        'type'    => $type,
+        'message' => $message
+    ];
+}
+
+/**
+ * Flash message helper: retrieve and consume message
+ * 
+ * @return array|null
+ */
+function get_flash(): ?array
+{
+    if (isset($_SESSION['flash'])) {
+        $flash = $_SESSION['flash'];
+        unset($_SESSION['flash']);
+        return $flash;
+    }
+    return null;
+}
+
+/**
+ * Builds a URL retaining existing GET parameters while overriding the language
+ * 
+ * @param string $targetLang
+ * @return string
+ */
+function lang_url(string $targetLang): string
+{
+    $params = $_GET;
+    $params['lang'] = $targetLang;
+    $currentScript = basename($_SERVER['PHP_SELF'] ?? 'index.php');
+    return $currentScript . '?' . http_build_query($params);
+}
