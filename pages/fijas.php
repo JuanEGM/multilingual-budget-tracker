@@ -849,6 +849,8 @@ require_once __DIR__ . '/../includes/header.php';
             </form>
         </div>
     </div>
+</div>
+
 <!-- Modal: Edit Fixed Commitment / Subscription -->
 <div class="modal fade" id="editFixedModal" tabindex="-1" aria-labelledby="editFixedModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -990,34 +992,51 @@ require_once __DIR__ . '/../includes/header.php';
 
 <script>
     // Wire up Edit Fixed Transaction Modal with clicked row data
-    const editFixedModal = document.getElementById('editFixedModal');
-    if (editFixedModal) {
-        editFixedModal.addEventListener('show.bs.modal', function (event) {
-            const button = event.relatedTarget;
-            const id = button.getAttribute('data-id');
-            const tipo = button.getAttribute('data-tipo');
-            const concepto = button.getAttribute('data-concepto');
-            const monto = button.getAttribute('data-monto');
-            const dia = button.getAttribute('data-dia');
-            const metodo = button.getAttribute('data-metodo');
-            const cuenta = button.getAttribute('data-cuenta');
-            const categoria = button.getAttribute('data-categoria');
+    document.addEventListener('DOMContentLoaded', function () {
+        const editFixedModal = document.getElementById('editFixedModal');
+        if (editFixedModal) {
+            editFixedModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget ? (event.relatedTarget.closest('[data-bs-toggle="modal"]') || event.relatedTarget) : null;
+                if (!button) return;
 
-            editFixedModal.querySelector('#edit_fixed_id').value = id;
-            editFixedModal.querySelector('#edit_fixed_concepto').value = concepto;
-            editFixedModal.querySelector('#edit_fixed_monto').value = parseFloat(monto).toFixed(2);
-            editFixedModal.querySelector('#edit_fixed_dia_pago').value = dia;
-            editFixedModal.querySelector('#edit_fixed_categoria').value = categoria;
-            editFixedModal.querySelector('#edit_fixed_metodo_pago').value = metodo;
-            editFixedModal.querySelector('#edit_fixed_cuenta_id').value = cuenta;
+                const id = button.getAttribute('data-id') || '';
+                const tipo = button.getAttribute('data-tipo') || 'expense';
+                const concepto = button.getAttribute('data-concepto') || '';
+                const monto = button.getAttribute('data-monto') || '0';
+                const dia = button.getAttribute('data-dia') || '1';
+                const metodo = button.getAttribute('data-metodo') || 'debito';
+                const cuenta = button.getAttribute('data-cuenta') || '0';
+                const categoria = button.getAttribute('data-categoria') || '';
 
-            if (tipo === 'income') {
-                editFixedModal.querySelector('#edit_fixed_type_income').checked = true;
-            } else {
-                editFixedModal.querySelector('#edit_fixed_type_expense').checked = true;
-            }
-        });
-    }
+                const idEl = editFixedModal.querySelector('#edit_fixed_id');
+                const conceptoEl = editFixedModal.querySelector('#edit_fixed_concepto');
+                const montoEl = editFixedModal.querySelector('#edit_fixed_monto');
+                const diaEl = editFixedModal.querySelector('#edit_fixed_dia_pago');
+                const catEl = editFixedModal.querySelector('#edit_fixed_categoria');
+                const metodoEl = editFixedModal.querySelector('#edit_fixed_metodo_pago');
+                const cuentaEl = editFixedModal.querySelector('#edit_fixed_cuenta_id');
+
+                if (idEl) idEl.value = id;
+                if (conceptoEl) conceptoEl.value = concepto;
+                if (montoEl) {
+                    const parsedMonto = parseFloat(monto);
+                    montoEl.value = isNaN(parsedMonto) ? '' : parsedMonto.toFixed(2);
+                }
+                if (diaEl) diaEl.value = dia;
+                if (catEl) catEl.value = categoria;
+                if (metodoEl) metodoEl.value = metodo;
+                if (cuentaEl) cuentaEl.value = cuenta;
+
+                if (tipo === 'income') {
+                    const incRadio = editFixedModal.querySelector('#edit_fixed_type_income');
+                    if (incRadio) incRadio.checked = true;
+                } else {
+                    const expRadio = editFixedModal.querySelector('#edit_fixed_type_expense');
+                    if (expRadio) expRadio.checked = true;
+                }
+            });
+        }
+    });
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
