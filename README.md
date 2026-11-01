@@ -104,7 +104,8 @@ The application updates the session and reloads cleanly **without modifying the 
 
 ```text
 ├── config/
-│   └── db.php                  # Secure PDO database connection
+│   ├── db.php                  # Secure PDO database connection
+│   └── migrate.php             # Database auto-migration utility
 ├── controllers/
 │   ├── cambiar_idioma.php      # Clean in-app language switcher controller (POST/AJAX)
 │   └── eliminar.php            # Controller to delete transactions safely
