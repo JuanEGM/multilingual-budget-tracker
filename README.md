@@ -176,6 +176,59 @@ If you prefer not to install PHP or MySQL directly on your machine:
 
 ---
 
+## 📖 User Guide & Walkthrough
+
+Follow this step-by-step walkthrough to get the most out of your budget tracker:
+
+### Step 1: Set Up Your Accounts & Cards
+1. Navigate to **Accounts & Cards** from the sidebar.
+2. Click **+ New Account / Card** to create:
+   - Bank Checking or Savings Accounts.
+   - Credit Cards (Visa, Mastercard, Amex).
+   - Debit Cards.
+   - Cash Wallets.
+3. Enter your current available balance. If greater than zero, an initial opening balance entry is automatically logged.
+4. **Deposit or Withdraw Funds**: Use the quick **Deposit / Withdraw** buttons on any card to add or take out cash with custom notes.
+5. **Transfer Between Accounts**: Click **Transfer Between Accounts** to move money seamlessly (e.g., paying a credit card bill from checking, or withdrawing ATM cash to your wallet).
+
+### Step 2: Configure Subscriptions & Recurring Commitments
+1. Go to **Subscriptions & Fixed Payments** from the navigation menu.
+2. Click **+ New Fixed Payment / Subscription**.
+3. Choose the recurrence frequency:
+   - **Monthly**: Enter your billing day (e.g., day 5 of each month).
+   - **Biweekly**: Enter primary and secondary days (e.g., days 15 and 30 for payroll or split rent).
+   - **Annual**: Select the billing month and day (e.g., November 15 for Amazon Prime or domain renewals).
+4. **Link to a Card or Account**: Select which payment method covers this subscription.
+   - The app automatically calculates your card's **Projected Remaining Balance** (Current Balance minus active recurring commitments).
+5. **1-Click Execution**: At the start of a cycle, click **Apply All Pending** to instantly record all due commitments into your transactions ledger and update account balances.
+
+### Step 3: Record Daily Transactions
+1. Click **+ New Transaction** in the topbar or sidebar.
+2. Select your transaction type with high-contrast visual indicators:
+   - **Expense** (illuminates in pure Red): Groceries, dining out, bills.
+   - **Income** (illuminates in pure Green): Salary, freelance, dividends.
+   - **Transfer** (illuminates in pure Blue): Move money directly between two of your accounts.
+3. Enter the amount, date, category, and linked account.
+4. *(Optional)* Toggle **"Also save as recurring subscription"** if you want future cycles to track this expense automatically.
+5. Click **Save Transaction**. The ledger and linked account balances update immediately.
+
+### Step 4: Monitor Dashboard & Cash Flow
+1. Visit the **Dashboard** for an instant high-level overview:
+   - **Total Income**: All verified inflows.
+   - **Total Expenses**: All verified outflows.
+   - **Net Balance**: Live cash flow with contextual **Surplus** (green) or **Deficit** (red) badges.
+   - **Fixed Commitment Banner**: Real-time monthly equivalent cost of your active subscriptions.
+2. **Reviewing & Managing the Ledger**:
+   - Inspect transaction dates, categories, linked card tags, and transfer routes (`[Origin] ➔ [Destination]`).
+   - Need to remove an entry? Click the delete button. The system **automatically reverses the financial impact** on any linked accounts.
+
+### Step 5: Personalize Your Workspace
+- **Multilingual Switcher**: Open the language dropdown in the sidebar to switch between **🇺🇸 English**, **🇪🇸 Español**, **🇫🇷 Français**, and **🇵🇹 Português** with clean URLs.
+- **Theme Engine**: Toggle between **Dark Mode** and **Light Mode** instantly using the Sun/Moon button in the topbar.
+- **Collapsible Sidebar**: Collapse the navigation bar for a distraction-free widescreen budgeting view.
+
+---
+
 ## ⚙️ Custom Configuration (.env)
 
 If your database server uses non-standard ports or custom credentials:
