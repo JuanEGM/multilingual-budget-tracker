@@ -1,202 +1,205 @@
-# Gestor de Presupuesto Personal y Control de Gastos — Fase 2
+# Personal Budget Manager & Expense Tracker — Phase 2
 
-Una aplicación web fintech moderna, modular y ligera para la gestión financiera personal, desarrollada con **PHP 8.x nativo**, **MySQL / MariaDB (PDO)**, **Bootstrap 5**, arquitectura **multi-entorno** (XAMPP, MAMP, Laragon, Docker) y soporte **multilingüe completo en 4 idiomas** (Español, Inglés, Francés y Portugués).
+A modern, lightweight, and modular personal finance web application built with **Native PHP 8.x**, **MySQL / MariaDB (PDO)**, **Bootstrap 5**, a seamless **multi-environment architecture** (XAMPP, MAMP, Laragon, Docker), and **native 4-language support** (English, Spanish, French, and Portuguese).
 
 ---
 
-## 🚀 Nuevas Funcionalidades y Mejoras
+## 🚀 Key Features & Phase 2 Enhancements
 
-### 1. 🔄 Transacciones y Transferencias entre Cuentas y Tarjetas
-- **Transferencias Directas**: Mueve dinero entre cuentas bancarias, de tarjeta a cuenta, de cuenta a tarjeta o entre billeteras de efectivo.
-- **Transaccionalidad Atómica (ACID)**: Descuento en la cuenta de origen y abono en la cuenta de destino ejecutados mediante transacciones seguras de base de datos (`beginTransaction` / `commit`).
-- **Conservación Patrimonial**: Las transferencias internas no alteran el balance de gastos ni ingresos netos del patrimonio global, reflejándose con exactitud en los saldos de cada tarjeta o cuenta.
-- **Reversión Automática**: Al eliminar una transacción de transferencia, el sistema devuelve automáticamente los fondos a la cuenta de origen y los descuenta de la cuenta de destino.
-- **Botón Swap**: Inversión rápida de origen y destino con un solo clic.
+### 1. 🔄 Inter-Account & Card Transfers
+- **Direct Transfers**: Move money between bank accounts, debit cards, credit cards, or cash wallets.
+- **Atomic Transactions (ACID)**: Funds are debited from the source account and credited to the destination account in a single secure database transaction (`beginTransaction` / `commit`) with automatic rollback on errors.
+- **Net-Neutral Equity**: Internal transfers update individual account balances without skewing your overall personal income and expense ledger.
+- **Automatic Reversal**: Deleting a transfer automatically refunds the source account and deducts the amount from the destination account.
+- **1-Click Swap**: Instant source/destination swap button for seamless adjustments.
 
-### 2. 📅 Suscripciones Quincenales, Anuales y Mensuales
-- **Soporte de Periodicidades**:
-  - **Mensual**: Cobro o pago en un día específico del mes (ej. día 5).
-  - **Quincenal**: Pagos divididos en dos días del mes (ej. días 15 y 30 o quincenas laborales).
-  - **Anual**: Pagos o renovaciones de periodicidad anual con selección de mes y día (ej. Amazon Prime, seguros, dominios).
-- **Cálculo de Equivalente Mensual**: El sistema pondera automáticamente las suscripciones quincenales (`monto × 2`) y anuales (`monto ÷ 12`) para proyectar el flujo de caja mensual y el saldo restante proyectado en cada tarjeta de crédito o débito.
-- **Aplicación por Ciclos**: Registro en el libro diario de compromisos mensuales, quincenales o anuales con prevención de duplicados por ciclo.
+### 2. 📅 Flexible Subscriptions: Monthly, Biweekly & Annual
+- **Recurrence Frequencies**:
+  - **Monthly**: Scheduled billing on a specific day of each month (e.g., the 5th).
+  - **Biweekly (2x/month)**: Split payments with two custom days per month (e.g., 15th and 30th or payroll cycles).
+  - **Annual (1x/year)**: Yearly commitments with month and day selectors (e.g., Amazon Prime, domain renewals, car insurance).
+- **Automated Monthly Equivalent Projection**: Automatically weights biweekly ($\text{amount} \times 2$) and annual ($\text{amount} \div 12$) commitments to calculate projected card balances and monthly budget forecasts accurately.
+- **Cycle-Aware Logging**: Apply recurring commitments to the current transaction cycle with automatic duplicate prevention.
 
-### 3. 🔌 Conexión Multi-Entorno (XAMPP, MAMP, Laragon, Docker)
-- **Auto-Detección Inteligente**: El sistema intenta conectarse de forma secuencial y transparente a los entornos locales más comunes:
-  1. Variables de entorno en `.env` o del sistema operativo.
-  2. **XAMPP / Laragon**: `127.0.0.1:3306` con usuario `root` y sin contraseña.
-  3. **MAMP**: `127.0.0.1:8889` y `127.0.0.1:3306` con usuario `root` y contraseña `root`.
-  4. **Docker**: Servicio de red `db:3306`.
-- **Auto-Creación de Base de Datos**: Si el servidor MySQL está activo pero la base de datos `gestor_financiero` aún no ha sido creada, el script de conexión la crea automáticamente (`CREATE DATABASE IF NOT EXISTS`) y aplica las migraciones estructurales sin requerir comandos manuales.
-- **Soporte Docker Oficial**: Incluye `Dockerfile` y `docker-compose.yml` listos para producción y desarrollo local con un solo comando.
-- **Soporte para archivo `.env`**: Plantilla `.env.example` lista para personalizar credenciales sin dependencias externas.
+### 3. 🔌 Universal Multi-Environment Support (XAMPP, MAMP, Laragon, Docker)
+- **Smart Auto-Detection**: Connects out-of-the-box in sequential priority:
+  1. Environment variables (`.env` or system environment).
+  2. **XAMPP / Laragon**: `127.0.0.1:3306` (`root` / empty password).
+  3. **MAMP**: `127.0.0.1:8889` and `127.0.0.1:3306` (`root` / `root`).
+  4. **Docker**: Internal service network `db:3306`.
+- **Automatic Database Provisioning**: If MySQL is running but the database `gestor_financiero` does not exist yet, the connection engine creates it automatically (`CREATE DATABASE IF NOT EXISTS`) and runs structural migrations dynamically.
+- **Official Docker Setup**: Includes preconfigured `Dockerfile` and `docker-compose.yml` for instant startup.
+- **Environment File Support**: Lightweight `.env.example` template for custom configurations without third-party dependencies.
 
-### 4. 🌍 Soporte Multilingüe (i18n): Español, Inglés, Francés y Portugués
-- **4 Idiomas Nativos**:
-  - 🇪🇸 **Español** (`es`)
+### 4. 🌍 Full Multilingual Support (i18n)
+- **4 Native Languages**:
   - 🇺🇸 **English** (`en`)
-  - 🇫🇷 **Français** (`fr`)
-  - 🇵🇹 **Português** (`pt`)
-- **URLs Limpias**: Cambio instantáneo de idioma desde el menú lateral persistido en sesión PHP sin ensuciar la barra de direcciones con parámetros `?lang=`.
-- **Formateo Regional de Fechas**: Fechas adaptadas automáticamente según el estándar lingüístico de cada idioma.
+  - 🇪🇸 **Spanish** (`es`)
+  - 🇫🇷 **French** (`fr`)
+  - 🇵🇹 **Portuguese** (`pt`)
+- **Clean URLs**: Change languages seamlessly from the sidebar dropdown without polluting the browser address bar with `?lang=` parameters. Active choice is persisted in PHP session.
+- **Localized Date Formatting**: Dates format automatically according to regional conventions (`M d, Y` or `d/m/Y`).
+
+### 5. 🎨 Modern Fintech UI & High-Contrast Controls
+- **Segmented Radio Controls**: Solid pure color fills when selected (**Red** for expenses and withdrawals, **Green** for income and deposits, and **Blue** for transfers) in both Light and Dark themes.
 
 ---
 
-## 💻 Guía de Inicio Rápido por Sistema Operativo
+## 💻 Quick Start Guide by Operating System
 
-Selecciona las instrucciones según tu sistema operativo:
+Select the setup instructions for your operating system:
 
 ```
-├── 🪟 Windows
-├── 🍎 macOS
-├── 🐧 Linux
-└── 🐳 Docker (Multiplataforma)
+├── 🪟 1. Windows
+├── 🍎 2. macOS
+├── 🐧 3. Linux
+└── 🐳 4. Docker (Cross-Platform)
 ```
 
 ---
 
-### 🪟 1. Guía para Windows
+### 🪟 1. Windows Guide
 
-#### Método 1: Inicio Rápido con 1 Clic (Recomendado)
-1. Asegúrate de tener tu servidor MySQL activo (por ejemplo, el módulo **MySQL en verde** en XAMPP o Laragon).
-2. Haz **doble clic en `iniciar.bat`** en la carpeta principal del proyecto.
-3. El script detectará tu instalación de PHP, iniciará el servidor local y abrirá tu navegador automáticamente en:
+#### Method A: 1-Click Fast Launcher (Recommended)
+1. Ensure your MySQL service is running (e.g. green status in XAMPP or Laragon).
+2. Double-click **`iniciar.bat`** in the project root.
+3. The script detects your PHP runtime, starts the local server, and automatically opens your browser at:
    ```text
    http://localhost:8000
    ```
 
-*(Opcional: Si deseas restaurar o importar manualmente la base de datos limpia, haz doble clic en `importar_bd.bat`)*.
+*(Optional: To import or reset the clean schema manually, double-click `importar_bd.bat`)*.
 
 ---
 
-#### Método 2: Con XAMPP
-1. Inicia **Apache** y **MySQL** desde el **XAMPP Control Panel**.
-2. Copia la carpeta del proyecto a:
+#### Method B: Running with XAMPP
+1. Open the **XAMPP Control Panel** and start **Apache** and **MySQL**.
+2. Move the project folder to:
    ```text
    C:\xampp\htdocs\gestor-financiero
    ```
-3. Accede desde tu navegador a:
+3. Open your browser and navigate to:
    ```text
    http://localhost/gestor-financiero/
    ```
 
 ---
 
-#### Método 3: Con Laragon
-1. Abre **Laragon** y pulsa **Start All**.
-2. Coloca el proyecto en:
+#### Method C: Running with Laragon
+1. Open **Laragon** and click **Start All**.
+2. Place the project folder in:
    ```text
    C:\laragon\www\gestor-financiero
    ```
-3. Visita en tu navegador:
+3. Access your app at:
    ```text
    http://gestor-financiero.test
    ```
 
 ---
 
-### 🍎 2. Guía para macOS
+### 🍎 2. macOS Guide
 
-#### Método 1: Doble Clic en Finder (Estilo Nativo Mac)
-1. Asegúrate de tener MySQL iniciado (vía **MAMP**, **Homebrew** o **XAMPP**).
-2. En el **Finder** de tu Mac, ve a la carpeta del proyecto y haz **doble clic en `iniciar.command`**.
-3. Se abrirá la Terminal de macOS, iniciará el servidor y se abrirá tu navegador predeterminado en:
+#### Method A: 1-Click Finder Launcher (Native Mac Style)
+1. Ensure your MySQL service is active (via **MAMP**, **Homebrew**, or **XAMPP**).
+2. In **Finder**, navigate to the project directory and double-click **`iniciar.command`**.
+3. macOS Terminal will open, boot the development server, and launch your default browser at:
    ```text
    http://localhost:8000
    ```
 
-*(Opcional: Para importar o resetear la base de datos desde Finder, haz doble clic en `importar_bd.command`)*.
+*(Optional: To import or reset the database via Finder, double-click `importar_bd.command`)*.
 
 ---
 
-#### Método 2: Por Terminal de macOS
-1. Abre la **Terminal** y navega a la carpeta del proyecto:
+#### Method B: Via macOS Terminal
+1. Open **Terminal** and navigate to the project folder:
    ```bash
-   cd "/ruta/al/proyecto/Gestor Financiero"
+   cd "/path/to/multilingual-budget-tracker"
    ```
-2. Inicia el servidor con el script ejecutable:
+2. Start the application using the executable shell script:
    ```bash
    ./iniciar.sh
    ```
-3. Para importar la base de datos por terminal:
+3. To import the database schema via terminal:
    ```bash
    ./importar_bd.sh
    ```
 
 ---
 
-#### Método 3: Con MAMP para Mac
-1. Abre **MAMP** y haz clic en **Start Servers**.
-2. Por defecto MAMP utiliza el puerto `8889` con usuario `root` y contraseña `root`. **El sistema lo detecta de forma automática sin que tengas que configurar nada**.
-3. Ejecuta `iniciar.command` o `./iniciar.sh`.
+#### Method C: Running with MAMP for Mac
+1. Open **MAMP** and click **Start Servers**.
+2. MAMP defaults to port `8889` with credentials `root` / `root`. **The system detects this automatically without any manual configuration**.
+3. Run `iniciar.command` or `./iniciar.sh`.
 
 ---
 
-### 🐧 3. Guía para Linux
+### 🐧 3. Linux Guide
 
-1. Abre una terminal en el directorio del proyecto:
+1. Open your terminal in the project directory:
    ```bash
-   cd /ruta/al/proyecto/gestor-financiero
+   cd /path/to/multilingual-budget-tracker
    ```
-2. Asegúrate de tener instalado PHP (con extensión `pdo_mysql`) y MySQL/MariaDB:
+2. Ensure PHP (with `pdo_mysql`) and MySQL/MariaDB are installed:
    ```bash
    sudo apt update && sudo apt install php php-mysql mysql-server -y   # (Debian/Ubuntu)
    ```
-3. Inicia la aplicación con el script:
+3. Start the application:
    ```bash
    ./iniciar.sh
    ```
-4. Abre en tu navegador `http://localhost:8000`.
+4. Open your browser at `http://localhost:8000`.
 
 ---
 
-### 🐳 4. Guía con Docker (Windows, macOS o Linux)
+### 🐳 4. Docker Guide (Windows, macOS, or Linux)
 
-Si prefieres no instalar PHP ni MySQL en tu sistema y tienes **Docker** con **Docker Compose**:
+If you prefer not to install PHP or MySQL directly on your machine:
 
-1. Abre tu terminal o consola en la carpeta del proyecto.
-2. Levanta los contenedores con un solo comando:
+1. Open your terminal in the project root directory.
+2. Spin up the containers with a single command:
    ```bash
    docker compose up -d
    ```
-3. Listo. Se levantará automáticamente:
-   - **Contenedor Web**: Apache + PHP 8.2 en el puerto `8000`.
-   - **Contenedor BD**: MariaDB 10.11 preconfigurado e inicializado con la base de datos `gestor_financiero`.
-4. Abre en tu navegador:
+3. The stack boots up automatically:
+   - **Web Service**: Apache + PHP 8.2 on port `8000`.
+   - **Database Service**: MariaDB 10.11 pre-provisioned with `gestor_financiero`.
+4. Open your browser at:
    ```text
    http://localhost:8000
    ```
-5. Para detener los contenedores cuando termines:
+5. When finished, stop the containers with:
    ```bash
    docker compose down
    ```
 
 ---
 
-## ⚙️ Configuración Personalizada (.env)
+## ⚙️ Custom Configuration (.env)
 
-Si tu servidor de base de datos utiliza un puerto o contraseña diferente a los estándares de XAMPP/MAMP/Laragon:
+If your database server uses non-standard ports or custom credentials:
 
-1. Duplica el archivo `.env.example` y renómbralo a `.env`:
+1. Copy the `.env.example` file to `.env`:
    ```bash
    cp .env.example .env
    ```
-2. Ajusta tus valores:
+2. Configure your credentials:
    ```ini
    DB_HOST=127.0.0.1
    DB_PORT=3306
    DB_NAME=gestor_financiero
    DB_USER=root
-   DB_PASS=tu_contraseña
+   DB_PASS=your_password
    ```
 
 ---
 
-## 🔒 Seguridad y Buenas Prácticas
-- Consultas 100% preparadas mediante **PDO** con parámetros tipados para prevenir inyecciones SQL.
-- Escape contextual contra XSS mediante `htmlspecialchars`.
-- Transacciones de base de datos con control de rollback en transferencias y eliminaciones de registros.
-- Interfaz reactiva fluida con almacenamiento local de preferencias de tema (Oscuro / Claro) y estado colapsado del menú lateral.
+## 🔒 Security & Best Practices
+- **100% Prepared Statements**: Structured queries via PDO with strictly typed error modes prevent SQL injection.
+- **XSS Mitigation**: Contextual output escaping with `htmlspecialchars`.
+- **Transaction Safety**: Atomic database transactions with rollback protection on transfers and record deletions.
+- **Responsive Architecture**: Ultra-fluid interface with local storage persistence for Theme (Light/Dark) and sidebar collapsed states.
 
 ---
-Desarrollado con ❤️ por JuanEGM. Todos los derechos reservados.
+Crafted with ❤️ by JuanEGM. All rights reserved.
