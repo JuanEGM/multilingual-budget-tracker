@@ -1,6 +1,6 @@
 <?php
 /**
- * Header Template Component
+ * Header & Sidebar Layout Template - Fintech SaaS Edition
  * Gestor de Presupuesto Personal y Control de Gastos
  */
 
@@ -8,287 +8,226 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../helpers/lang.php';
 
-$activeLang = current_lang();
-$currentPage = basename($_SERVER['PHP_SELF'] ?? 'index.php');
+$activeLang   = current_lang();
+$currentPage  = basename($_SERVER['PHP_SELF'] ?? 'index.php');
 $flashMessage = get_flash();
 ?>
 <!DOCTYPE html>
-<html lang="<?= htmlspecialchars($activeLang) ?>">
+<html lang="<?= htmlspecialchars($activeLang) ?>" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($pageTitle ?? __('app_name')) ?> - <?= htmlspecialchars(__('app_subtitle')) ?></title>
+    <title><?= htmlspecialchars($pageTitle ?? __('app_name')) ?> — <?= htmlspecialchars(__('app_subtitle')) ?></title>
     
-    <!-- Google Fonts: Inter -->
+    <!-- Script inmediato de precarga (Anti-FOUC): aplica tema y estado del sidebar antes del render -->
+    <script>
+        (function() {
+            // 1. Evitar animaciones de transición indeseadas durante la carga inicial
+            document.documentElement.classList.add('no-transitions');
+            window.addEventListener('DOMContentLoaded', function() {
+                requestAnimationFrame(function() {
+                    document.documentElement.classList.remove('no-transitions');
+                });
+            });
+
+            // 2. Aplicar tema de color
+            const savedTheme = localStorage.getItem('fintech_theme') || 'dark';
+            document.documentElement.setAttribute('data-bs-theme', savedTheme);
+
+            // 3. Aplicar estado colapsado antes de que el navegador pinte el DOM
+            const isCollapsed = localStorage.getItem('fintech_sidebar_collapsed') === 'true';
+            if (isCollapsed && window.innerWidth >= 992) {
+                document.documentElement.classList.add('sidebar-collapsed');
+            }
+        })();
+    </script>
+
+    <!-- Google Fonts: Inter & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Bootstrap 5.3.3 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     
-    <!-- Bootstrap Icons 1.11.3 -->
+    <!-- Bootstrap Icons 1.11.3 & Lucide Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    
-    <style>
-        :root {
-            --bs-font-sans-serif: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            --brand-primary: #0f172a;
-            --brand-accent: #2563eb;
-            --income-color: #10b981;
-            --expense-color: #ef4444;
-        }
+    <script src="https://unpkg.com/lucide@latest"></script>
 
-        body {
-            font-family: var(--bs-font-sans-serif);
-            background-color: #f8fafc;
-            color: #1e293b;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        main {
-            flex: 1 0 auto;
-        }
-
-        .navbar-brand-custom {
-            font-weight: 700;
-            font-size: 1.15rem;
-            letter-spacing: -0.02em;
-            color: #ffffff !important;
-        }
-
-        .navbar-brand-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 34px;
-            height: 34px;
-            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-            border-radius: 8px;
-            color: white;
-            font-size: 1.1rem;
-            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.25);
-        }
-
-        .card-stat {
-            border: 1px solid rgba(226, 232, 240, 0.8);
-            border-radius: 14px;
-            background: #ffffff;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        }
-
-        .card-stat:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
-        }
-
-        .icon-bubble {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.35rem;
-        }
-
-        .icon-bubble-income {
-            background-color: #ecfdf5;
-            color: #059669;
-        }
-
-        .icon-bubble-expense {
-            background-color: #fef2f2;
-            color: #dc2626;
-        }
-
-        .icon-bubble-balance {
-            background-color: #eff6ff;
-            color: #2563eb;
-        }
-
-        .icon-bubble-purple {
-            background-color: #f5f3ff;
-            color: #7c3aed;
-        }
-
-        .badge-income {
-            background-color: #d1fae5;
-            color: #065f46;
-            font-weight: 600;
-            border-radius: 6px;
-            padding: 0.35em 0.65em;
-        }
-
-        .badge-expense {
-            background-color: #fee2e2;
-            color: #991b1b;
-            font-weight: 600;
-            border-radius: 6px;
-            padding: 0.35em 0.65em;
-        }
-
-        .badge-category {
-            background-color: #f1f5f9;
-            color: #475569;
-            font-weight: 500;
-            border-radius: 6px;
-            font-size: 0.82rem;
-            padding: 0.3em 0.6em;
-            border: 1px solid #e2e8f0;
-        }
-
-        .badge-recurring-pill {
-            background-color: #f5f3ff;
-            color: #6d28d9;
-            border: 1px solid #ddd6fe;
-            font-size: 0.75rem;
-            font-weight: 600;
-            border-radius: 20px;
-            padding: 0.2em 0.55em;
-        }
-
-        .table th {
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            font-weight: 600;
-            color: #64748b;
-            border-top: none;
-        }
-
-        .table-custom {
-            border-collapse: separate;
-            border-spacing: 0;
-        }
-
-        .table-custom tbody tr {
-            transition: background-color 0.15s ease;
-        }
-
-        .table-custom tbody tr:hover {
-            background-color: #f8fafc;
-        }
-
-        .lang-active {
-            font-weight: 600;
-            color: #2563eb !important;
-        }
-
-        .footer-custom {
-            background: #ffffff;
-            border-top: 1px solid #e2e8f0;
-            color: #64748b;
-            font-size: 0.875rem;
-        }
-
-        .btn-lang-submit {
-            background: none;
-            border: none;
-            width: 100%;
-            text-align: left;
-            cursor: pointer;
-        }
-    </style>
+    <!-- Fintech & Modern SaaS Design System -->
+    <link rel="stylesheet" href="<?= htmlspecialchars(app_url('assets/css/fintech-theme.css')) ?>">
 </head>
 <body>
 
-    <!-- Navigation Bar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm py-2">
-        <div class="container">
-            <a class="navbar-brand navbar-brand-custom d-flex align-items-center gap-2" href="<?= htmlspecialchars(app_url('index.php')) ?>">
-                <span class="navbar-brand-icon">
-                    <i class="bi bi-wallet2"></i>
+<div class="app-shell" id="appShell">
+    <script>
+        if (localStorage.getItem('fintech_sidebar_collapsed') === 'true' && window.innerWidth >= 992) {
+            document.getElementById('appShell').classList.add('sidebar-collapsed');
+        }
+    </script>
+
+    <!-- ========================================================================
+         BARRA LATERAL VERTICAL (SIDEBAR)
+         ======================================================================== -->
+    <aside class="app-sidebar" id="appSidebar">
+        <!-- Logo / Identidad -->
+        <div class="sidebar-header">
+            <a href="<?= htmlspecialchars(app_url('index.php')) ?>" class="d-flex align-items-center gap-2 text-decoration-none text-reset overflow-hidden w-100">
+                <span class="app-brand-badge">
+                    <i data-lucide="wallet-cards" style="width: 16px; height: 16px;"></i>
                 </span>
-                <span><?= htmlspecialchars(__('app_name')) ?></span>
-                <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle ms-1" style="font-size: 0.65rem;">
-                    <?= htmlspecialchars(__('phase_tag')) ?>
+                <span class="sidebar-hide-on-collapse fw-bold fs-6 text-truncate" style="letter-spacing: -0.015em;">
+                    <?= htmlspecialchars(__('app_name')) ?>
                 </span>
             </a>
+        </div>
 
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
+        <!-- Botón de Registro Rápido "+ Transacción" -->
+        <div class="sidebar-quick-action">
+            <a href="<?= htmlspecialchars(app_url('pages/agregar.php')) ?>" class="btn btn-fintech-primary w-100 d-flex align-items-center justify-content-center gap-1.5 py-1.5 text-nowrap">
+                <i data-lucide="plus" style="width: 15px; height: 15px;"></i>
+                <span class="sidebar-hide-on-collapse"><?= htmlspecialchars(__('nav_new_tx')) ?></span>
+            </a>
+        </div>
+
+        <!-- Menú de Navegación Vertical -->
+        <nav class="sidebar-nav-group">
+            <div class="sidebar-section-title sidebar-hide-on-collapse">General</div>
+
+            <a href="<?= htmlspecialchars(app_url('index.php')) ?>" 
+               class="sidebar-nav-link <?= ($currentPage === 'index.php') ? 'active' : '' ?>" 
+               title="<?= htmlspecialchars(__('nav_dashboard')) ?>">
+                <i data-lucide="layout-dashboard"></i>
+                <span class="sidebar-hide-on-collapse"><?= htmlspecialchars(__('nav_dashboard')) ?></span>
+            </a>
+
+            <a href="<?= htmlspecialchars(app_url('pages/fijas.php')) ?>" 
+               class="sidebar-nav-link <?= ($currentPage === 'fijas.php') ? 'active' : '' ?>" 
+               title="<?= htmlspecialchars(__('nav_recurring')) ?>">
+                <i data-lucide="calendar-sync"></i>
+                <span class="sidebar-hide-on-collapse"><?= htmlspecialchars(__('nav_recurring')) ?></span>
+            </a>
+
+            <a href="<?= htmlspecialchars(app_url('pages/cuentas.php')) ?>" 
+               class="sidebar-nav-link <?= ($currentPage === 'cuentas.php') ? 'active' : '' ?>" 
+               title="<?= htmlspecialchars(__('nav_accounts')) ?>">
+                <i data-lucide="credit-card"></i>
+                <span class="sidebar-hide-on-collapse"><?= htmlspecialchars(__('nav_accounts')) ?></span>
+            </a>
+
+            <div class="sidebar-section-title sidebar-hide-on-collapse mt-3">Operaciones</div>
+
+            <a href="<?= htmlspecialchars(app_url('pages/agregar.php')) ?>" 
+               class="sidebar-nav-link <?= ($currentPage === 'agregar.php') ? 'active' : '' ?>" 
+               title="<?= htmlspecialchars(__('nav_new_tx')) ?>">
+                <i data-lucide="receipt"></i>
+                <span class="sidebar-hide-on-collapse"><?= htmlspecialchars(__('nav_new_tx')) ?></span>
+            </a>
+        </nav>
+
+        <!-- Pie de la Barra Lateral -->
+        <div class="sidebar-footer">
+            <!-- Botón Colapsar / Expandir (Siempre accesible dentro de la barra) -->
+            <button class="btn btn-fintech-ghost w-100 d-flex align-items-center justify-content-center gap-2 py-1 px-2" id="sidebarCollapseBtn" title="Colapsar o expandir menú">
+                <i data-lucide="panel-left-close" class="collapse-icon-close" style="width: 15px; height: 15px;"></i>
+                <i data-lucide="panel-left-open" class="collapse-icon-open" style="width: 15px; height: 15px;"></i>
+                <span class="sidebar-hide-on-collapse" style="font-size: 0.75rem;">Colapsar</span>
             </button>
 
-            <div class="collapse navbar-collapse" id="mainNavbar">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3">
-                    <li class="nav-item">
-                        <a class="nav-link <?= ($currentPage === 'index.php') ? 'active fw-semibold' : '' ?>" href="<?= htmlspecialchars(app_url('index.php')) ?>">
-                            <i class="bi bi-grid-1x2-fill me-1"></i> <?= htmlspecialchars(__('nav_dashboard')) ?>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?= ($currentPage === 'fijas.php') ? 'active fw-semibold' : '' ?>" href="<?= htmlspecialchars(app_url('pages/fijas.php')) ?>">
-                            <i class="bi bi-arrow-repeat me-1"></i> <?= htmlspecialchars(__('nav_recurring')) ?>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?= ($currentPage === 'cuentas.php') ? 'active fw-semibold' : '' ?>" href="<?= htmlspecialchars(app_url('pages/cuentas.php')) ?>">
-                            <i class="bi bi-credit-card-2-front me-1"></i> <?= htmlspecialchars(__('nav_accounts')) ?>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?= ($currentPage === 'agregar.php') ? 'active fw-semibold' : '' ?>" href="<?= htmlspecialchars(app_url('pages/agregar.php')) ?>">
-                            <i class="bi bi-plus-circle-fill me-1"></i> <?= htmlspecialchars(__('nav_new_tx')) ?>
-                        </a>
-                    </li>
+            <!-- Estado de Base de Datos y Fase -->
+            <div class="d-flex align-items-center gap-2 px-2 py-1 small text-muted sidebar-hide-on-collapse">
+                <span class="d-inline-block rounded-circle bg-success" style="width: 7px; height: 7px; box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);"></span>
+                <span style="font-size: 0.74rem;"><?= function_exists('getDBEnvironmentLabel') ? htmlspecialchars(getDBEnvironmentLabel()) : 'MySQL / MariaDB Activo' ?></span>
+                <span class="ms-auto badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 0.62rem;">
+                    <?= htmlspecialchars(__('phase_tag')) ?>
+                </span>
+            </div>
+
+            <!-- Selector de Idioma (Español, Inglés, Francés, Portugués) -->
+            <?php
+                $langLabels = [
+                    'es' => '🇪🇸 Español',
+                    'en' => '🇺🇸 English',
+                    'fr' => '🇫🇷 Français',
+                    'pt' => '🇵🇹 Português'
+                ];
+                $currentLangDisplay = $langLabels[$activeLang] ?? '🇪🇸 Español';
+            ?>
+            <div class="dropdown">
+                <button class="btn btn-fintech-ghost w-100 d-flex align-items-center justify-content-between py-1 px-2" type="button" id="sidebarLangDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="<?= htmlspecialchars(__('nav_language')) . ': ' . htmlspecialchars($currentLangDisplay) ?>">
+                    <span class="d-flex align-items-center justify-content-center gap-2 lang-btn-inner">
+                        <i data-lucide="languages" style="width: 15px; height: 15px;"></i>
+                        <span class="sidebar-hide-on-collapse"><?= $currentLangDisplay ?></span>
+                    </span>
+                    <i data-lucide="chevron-down" style="width: 13px; height: 13px;" class="sidebar-hide-on-collapse"></i>
+                </button>
+                <ul class="dropdown-menu shadow border-secondary-subtle p-1" aria-labelledby="sidebarLangDropdown">
+                    <?php foreach ($langLabels as $code => $label): ?>
+                        <li>
+                            <form method="POST" action="<?= htmlspecialchars(app_url('controllers/cambiar_idioma.php')) ?>" class="m-0 p-0 lang-switch-form">
+                                <input type="hidden" name="lang" value="<?= htmlspecialchars($code) ?>">
+                                <button type="submit" class="dropdown-item d-flex align-items-center justify-content-between py-1.5 px-2 rounded-2 <?= ($activeLang === $code) ? 'active' : '' ?>">
+                                    <span><?= $label ?></span>
+                                    <?php if ($activeLang === $code): ?><i data-lucide="check" style="width: 14px; height: 14px;"></i><?php endif; ?>
+                                </button>
+                            </form>
+                        </li>
+                    <?php endforeach; ?>
                 </ul>
-
-                <!-- Language Switcher (Direct in App via POST / AJAX - Clean URLs with NO ?lang= in route) -->
-                <div class="d-flex align-items-center gap-3">
-                    <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-light dropdown-toggle d-flex align-items-center gap-2 px-3 py-1 rounded-pill" type="button" id="langDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-translate"></i>
-                            <span id="currentLangLabel"><?= ($activeLang === 'es') ? '🇪🇸 Español' : '🇺🇸 English' ?></span>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2 p-1" aria-labelledby="langDropdown">
-                            <li><h6 class="dropdown-header small text-uppercase"><?= htmlspecialchars(__('nav_language')) ?></h6></li>
-                            <li>
-                                <form method="POST" action="<?= htmlspecialchars(app_url('controllers/cambiar_idioma.php')) ?>" class="m-0 p-0 lang-switch-form">
-                                    <input type="hidden" name="lang" value="en">
-                                    <button type="submit" class="dropdown-item d-flex align-items-center justify-content-between py-2 rounded-2 <?= ($activeLang === 'en') ? 'lang-active bg-light' : '' ?>">
-                                        <span>🇺🇸 <?= htmlspecialchars(__('lang_en')) ?></span>
-                                        <?php if ($activeLang === 'en'): ?>
-                                            <i class="bi bi-check2 text-primary"></i>
-                                        <?php endif; ?>
-                                    </button>
-                                </form>
-                            </li>
-                            <li>
-                                <form method="POST" action="<?= htmlspecialchars(app_url('controllers/cambiar_idioma.php')) ?>" class="m-0 p-0 lang-switch-form">
-                                    <input type="hidden" name="lang" value="es">
-                                    <button type="submit" class="dropdown-item d-flex align-items-center justify-content-between py-2 rounded-2 <?= ($activeLang === 'es') ? 'lang-active bg-light' : '' ?>">
-                                        <span>🇪🇸 <?= htmlspecialchars(__('lang_es')) ?></span>
-                                        <?php if ($activeLang === 'es'): ?>
-                                            <i class="bi bi-check2 text-primary"></i>
-                                        <?php endif; ?>
-                                    </button>
-                                </form>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <a href="<?= htmlspecialchars(app_url('pages/agregar.php')) ?>" class="btn btn-sm btn-primary rounded-pill px-3 py-1.5 shadow-sm d-none d-sm-inline-flex align-items-center gap-1">
-                        <i class="bi bi-plus-lg"></i>
-                        <span><?= htmlspecialchars(__('nav_new_tx')) ?></span>
-                    </a>
-                </div>
             </div>
         </div>
-    </nav>
+    </aside>
 
-    <!-- Main Container -->
-    <main class="py-4">
-        <div class="container">
-            <?php if ($flashMessage): ?>
-                <div class="alert alert-<?= htmlspecialchars($flashMessage['type']) ?> alert-dismissible fade show shadow-sm border-0 d-flex align-items-center gap-2 mb-4" role="alert">
-                    <i class="bi <?= ($flashMessage['type'] === 'success') ? 'bi-check-circle-fill text-success fs-5' : 'bi-exclamation-triangle-fill text-danger fs-5' ?>"></i>
-                    <div class="flex-grow-1">
-                        <?= htmlspecialchars($flashMessage['message']) ?>
-                    </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <!-- ========================================================================
+         ÁREA PRINCIPAL DE LA APLICACIÓN
+         ======================================================================== -->
+    <div class="app-main">
+        <!-- Barra de Progreso de Navegación Suave (Linear / YouTube Style) -->
+        <div class="fintech-nav-progress" id="navProgressBar"></div>
+
+        <!-- Topbar de Control (Sub-header tipo SaaS) -->
+        <header class="app-topbar">
+            <!-- Izquierda: Botón Global de Sidebar (Siempre disponible para abrir/cerrar) & Ruta -->
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-fintech-ghost p-1.5 d-flex align-items-center justify-content-center text-secondary" id="globalSidebarToggle" title="Alternar barra lateral" aria-label="Alternar barra lateral">
+                    <i data-lucide="panel-left" style="width: 17px; height: 17px;"></i>
+                </button>
+                <div class="d-flex align-items-center gap-1.5 text-secondary small">
+                    <span class="text-muted"><?= htmlspecialchars(__('app_name')) ?></span>
+                    <span class="text-muted">/</span>
+                    <span class="fw-semibold text-reset" id="topbarCurrentPage"><?= htmlspecialchars($pageTitle ?? __('nav_dashboard')) ?></span>
                 </div>
-            <?php endif; ?>
+            </div>
+
+            <!-- Derecha: Selector de Tema & Acciones Rápidas (Limpio, sin recuadros distractores) -->
+            <div class="d-flex align-items-center gap-2">
+                <!-- Selector de Tema (Modo Claro / Oscuro - Instantáneo por CSS) -->
+                <button class="btn btn-sm btn-fintech-ghost p-1.5 d-flex align-items-center justify-content-center text-secondary" id="themeToggleBtn" title="Cambiar tema (Claro / Oscuro)" aria-label="Cambiar tema">
+                    <i data-lucide="sun" class="theme-icon-sun" style="width: 16px; height: 16px;"></i>
+                    <i data-lucide="moon" class="theme-icon-moon" style="width: 16px; height: 16px;"></i>
+                </button>
+
+                <!-- Botón de Nueva Transacción -->
+                <a href="<?= htmlspecialchars(app_url('pages/agregar.php')) ?>" class="btn btn-sm btn-fintech-primary py-1 px-2.5 d-flex align-items-center gap-1">
+                    <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
+                    <span class="d-none d-md-inline"><?= htmlspecialchars(__('nav_new_tx')) ?></span>
+                </a>
+            </div>
+        </header>
+
+        <!-- Viewport Scrollable (Maneja su propio scroll internamente) -->
+        <main class="app-viewport" id="appViewport">
+            <div class="container-fluid px-2 px-md-3 py-2">
+                
+                <!-- Notificaciones Flash Estilizadas -->
+                <?php if ($flashMessage): ?>
+                    <div class="alert alert-fintech alert-dismissible fade show d-flex align-items-center gap-2 mb-3 shadow-sm border-start border-4 <?= ($flashMessage['type'] === 'success') ? 'border-start-success' : 'border-start-danger' ?>" role="alert">
+                        <i data-lucide="<?= ($flashMessage['type'] === 'success') ? 'check-circle-2' : 'alert-circle' ?>" 
+                           style="width: 18px; height: 18px;" 
+                           class="<?= ($flashMessage['type'] === 'success') ? 'text-success' : 'text-danger' ?>"></i>
+                        <div class="flex-grow-1">
+                            <?= htmlspecialchars($flashMessage['message']) ?>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>

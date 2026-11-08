@@ -1,7 +1,7 @@
 <?php
 /**
- * Add New Transaction Form & Handler
- * Gestor de Presupuesto Personal y Control de Gastos - Phase 1+
+ * Add New Transaction & Internal Transfer Form & Handler
+ * Gestor de Presupuesto Personal y Control de Gastos - Phase 2
  */
 
 declare(strict_types=1);
@@ -13,14 +13,16 @@ $pdo = getDB();
 
 $errors = [];
 $formData = [
-    'tipo'          => 'expense', // sensible default for everyday expenses
-    'concepto'      => '',
-    'monto'         => '',
-    'categoria'     => '',
-    'fecha'         => date('Y-m-d'),
-    'metodo_pago'   => 'debito',
-    'cuenta_id'     => '0',
-    'es_recurrente' => ''
+    'tipo'              => 'expense', // 'expense', 'income', 'transfer'
+    'concepto'          => '',
+    'monto'             => '',
+    'categoria'         => '',
+    'fecha'             => date('Y-m-d'),
+    'metodo_pago'       => 'debito',
+    'cuenta_id'         => '0',
+    'cuenta_destino_id' => '0',
+    'es_recurrente'     => '',
+    'frecuencia'        => 'mensual'
 ];
 
 // -------------------------------------------------------------
@@ -39,57 +41,64 @@ try {
 // -------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Sanitize and trim inputs
-    $formData['tipo']          = trim($_POST['tipo'] ?? '');
-    $formData['concepto']      = trim($_POST['concepto'] ?? '');
-    $formData['monto']         = trim($_POST['monto'] ?? '');
-    $formData['categoria']     = trim($_POST['categoria'] ?? '');
-    $formData['fecha']         = trim($_POST['fecha'] ?? '');
-    $formData['metodo_pago']   = trim($_POST['metodo_pago'] ?? 'debito');
-    $formData['cuenta_id']     = trim($_POST['cuenta_id'] ?? '0');
-    $formData['es_recurrente'] = !empty($_POST['es_recurrente']) ? '1' : '';
+    $formData['tipo']              = trim($_POST['tipo'] ?? 'expense');
+    $formData['concepto']          = trim($_POST['concepto'] ?? '');
+    $formData['monto']             = trim($_POST['monto'] ?? '');
+    $formData['categoria']         = trim($_POST['categoria'] ?? '');
+    $formData['fecha']             = trim($_POST['fecha'] ?? '');
+    $formData['metodo_pago']       = trim($_POST['metodo_pago'] ?? 'debito');
+    $formData['cuenta_id']         = trim($_POST['cuenta_id'] ?? '0');
+    $formData['cuenta_destino_id'] = trim($_POST['cuenta_destino_id'] ?? '0');
+    $formData['es_recurrente']     = !empty($_POST['es_recurrente']) ? '1' : '';
+    $formData['frecuencia']        = trim($_POST['frecuencia'] ?? 'mensual');
 
     $cuentaIdInt = filter_var($formData['cuenta_id'], FILTER_VALIDATE_INT);
     if ($cuentaIdInt === false || $cuentaIdInt <= 0) {
         $cuentaIdInt = null;
     }
 
-    $validMethods = ['debito', 'credito', 'transferencia', 'efectivo'];
-    if (!in_array($formData['metodo_pago'], $validMethods, true)) {
-        $formData['metodo_pago'] = 'debito';
+    $cuentaDestinoIdInt = filter_var($formData['cuenta_destino_id'], FILTER_VALIDATE_INT);
+    if ($cuentaDestinoIdInt === false || $cuentaDestinoIdInt <= 0) {
+        $cuentaDestinoIdInt = null;
     }
 
-    // Validation 1: Required fields
-    if (
-        empty($formData['tipo']) || 
-        empty($formData['concepto']) || 
-        $formData['monto'] === '' || 
-        empty($formData['categoria']) || 
-        empty($formData['fecha'])
-    ) {
-        $errors[] = __('val_required_fields');
-    }
-
-    // Validation 2: Type must be either income or expense
-    if (!in_array($formData['tipo'], ['income', 'expense'], true)) {
+    $validTypes = ['income', 'expense', 'transfer'];
+    if (!in_array($formData['tipo'], $validTypes, true)) {
         $errors[] = __('val_invalid_type');
     }
 
-    // Validation 3: Concept length
-    if (mb_strlen($formData['concepto']) > 150) {
-        $errors[] = __('val_concept_len');
+    // Default concept & category for transfers if blank
+    if ($formData['tipo'] === 'transfer') {
+        if (empty($formData['categoria'])) {
+            $formData['categoria'] = __('cat_transfer');
+        }
+        if (!$cuentaIdInt || !$cuentaDestinoIdInt) {
+            $errors[] = __('val_required_fields');
+        } elseif ($cuentaIdInt === $cuentaDestinoIdInt) {
+            $errors[] = __('val_same_account');
+        }
+    } else {
+        if (empty($formData['categoria'])) {
+            $errors[] = __('val_required_fields');
+        }
     }
 
-    // Validation 4: Category length
-    if (mb_strlen($formData['categoria']) > 50) {
-        $errors[] = __('val_category_len');
+    if ($formData['monto'] === '' || empty($formData['fecha'])) {
+        $errors[] = __('val_required_fields');
     }
 
-    // Validation 5: Amount numeric and positive
     if (!is_numeric($formData['monto']) || (float) $formData['monto'] <= 0) {
         $errors[] = __('val_invalid_amount');
     }
 
-    // Validation 6: Date validation (YYYY-MM-DD)
+    if (mb_strlen($formData['concepto']) > 150) {
+        $errors[] = __('val_concept_len');
+    }
+
+    if (mb_strlen($formData['categoria']) > 50) {
+        $errors[] = __('val_category_len');
+    }
+
     $dateParts = explode('-', $formData['fecha']);
     if (
         count($dateParts) !== 3 || 
@@ -98,74 +107,133 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = __('val_invalid_date');
     }
 
-    // If no validation errors, proceed with DB insertion using prepared statement
+    // If no validation errors, proceed with DB insertion
     if (empty($errors)) {
         try {
-            $fijaId = null;
-            $esFija = 0;
             $amountFloat = round((float) $formData['monto'], 2);
 
-            // If user checked "Save also as recurring payment / subscription"
-            if (!empty($formData['es_recurrente'])) {
-                $dayOfMonth = (int) date('j', strtotime($formData['fecha']));
-                $stmtFija = $pdo->prepare("
-                    INSERT INTO transacciones_fijas (tipo, concepto, monto, categoria, dia_pago, metodo_pago, cuenta_id, activo, ultima_generacion) 
-                    VALUES (:tipo, :concepto, :monto, :categoria, :dia_pago, :metodo_pago, :cuenta_id, 1, :ultima_generacion)
+            $pdo->beginTransaction();
+
+            if ($formData['tipo'] === 'transfer') {
+                // Fetch account names for fallback concept
+                $acc1Stmt = $pdo->prepare("SELECT nombre, tipo FROM cuentas WHERE id = :id");
+                $acc1Stmt->execute([':id' => $cuentaIdInt]);
+                $acc1 = $acc1Stmt->fetch();
+
+                $acc2Stmt = $pdo->prepare("SELECT nombre FROM cuentas WHERE id = :id");
+                $acc2Stmt->execute([':id' => $cuentaDestinoIdInt]);
+                $acc2 = $acc2Stmt->fetch();
+
+                if (empty($formData['concepto'])) {
+                    $formData['concepto'] = __('transfer_concept_default', [
+                        ':from' => $acc1['nombre'] ?? 'Origen',
+                        ':to'   => $acc2['nombre'] ?? 'Destino'
+                    ]);
+                }
+
+                // Deduct from source account
+                $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual - :monto WHERE id = :id")
+                    ->execute([':monto' => $amountFloat, ':id' => $cuentaIdInt]);
+
+                // Add to destination account
+                $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual + :monto WHERE id = :id")
+                    ->execute([':monto' => $amountFloat, ':id' => $cuentaDestinoIdInt]);
+
+                // Insert into transactions ledger
+                $stmt = $pdo->prepare("
+                    INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id, cuenta_id, cuenta_destino_id, metodo_pago) 
+                    VALUES ('transfer', :concepto, :monto, :categoria, :fecha, 0, NULL, :cuenta_id, :cuenta_destino_id, :metodo_pago)
                 ");
-                $stmtFija->execute([
-                    ':tipo'              => $formData['tipo'],
+                $stmt->execute([
                     ':concepto'          => $formData['concepto'],
                     ':monto'             => $amountFloat,
                     ':categoria'         => $formData['categoria'],
-                    ':dia_pago'          => $dayOfMonth,
-                    ':metodo_pago'       => $formData['metodo_pago'],
+                    ':fecha'             => $formData['fecha'],
                     ':cuenta_id'         => $cuentaIdInt,
-                    ':ultima_generacion' => $formData['fecha']
+                    ':cuenta_destino_id' => $cuentaDestinoIdInt,
+                    ':metodo_pago'       => $acc1['tipo'] ?? 'transferencia'
                 ]);
-                $fijaId = (int) $pdo->lastInsertId();
-                $esFija = 1;
-            }
 
-            // Insert into main transactions ledger
-            $stmt = $pdo->prepare("
-                INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id, cuenta_id, metodo_pago) 
-                VALUES (:tipo, :concepto, :monto, :categoria, :fecha, :es_fija, :fija_id, :cuenta_id, :metodo_pago)
-            ");
+                $pdo->commit();
+                set_flash('success', __('msg_transfer_success'));
+                header("Location: " . app_url('index.php'));
+                exit;
+            } else {
+                // Income or Expense
+                $fijaId = null;
+                $esFija = 0;
 
-            $stmt->execute([
-                ':tipo'        => $formData['tipo'],
-                ':concepto'    => $formData['concepto'],
-                ':monto'       => $amountFloat,
-                ':categoria'   => $formData['categoria'],
-                ':fecha'       => $formData['fecha'],
-                ':es_fija'     => $esFija,
-                ':fija_id'     => $fijaId,
-                ':cuenta_id'   => $cuentaIdInt,
-                ':metodo_pago' => $formData['metodo_pago']
-            ]);
+                if (!empty($formData['es_recurrente'])) {
+                    $dayOfMonth = (int) date('j', strtotime($formData['fecha']));
+                    $freq = in_array($formData['frecuencia'], ['mensual', 'quincenal', 'anual'], true) ? $formData['frecuencia'] : 'mensual';
+                    $dia2 = ($freq === 'quincenal') ? min(31, $dayOfMonth + 15) : null;
+                    $mesAnual = (int) date('n', strtotime($formData['fecha']));
 
-            // Deduct from or add to account balance if an account/card is selected
-            if ($cuentaIdInt) {
-                if ($formData['tipo'] === 'expense') {
-                    $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual - :monto WHERE id = :id")
-                        ->execute([':monto' => $amountFloat, ':id' => $cuentaIdInt]);
-                } else {
-                    $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual + :monto WHERE id = :id")
-                        ->execute([':monto' => $amountFloat, ':id' => $cuentaIdInt]);
+                    $stmtFija = $pdo->prepare("
+                        INSERT INTO transacciones_fijas (tipo, concepto, monto, categoria, frecuencia, dia_pago, dia_pago_2, mes_pago, metodo_pago, cuenta_id, activo, ultima_generacion) 
+                        VALUES (:tipo, :concepto, :monto, :categoria, :frecuencia, :dia_pago, :dia_pago_2, :mes_pago, :metodo_pago, :cuenta_id, 1, :ultima_generacion)
+                    ");
+                    $stmtFija->execute([
+                        ':tipo'              => $formData['tipo'],
+                        ':concepto'          => $formData['concepto'],
+                        ':monto'             => $amountFloat,
+                        ':categoria'         => $formData['categoria'],
+                        ':frecuencia'        => $freq,
+                        ':dia_pago'          => $dayOfMonth,
+                        ':dia_pago_2'        => $dia2,
+                        ':mes_pago'          => $mesAnual,
+                        ':metodo_pago'       => $formData['metodo_pago'],
+                        ':cuenta_id'         => $cuentaIdInt,
+                        ':ultima_generacion' => $formData['fecha']
+                    ]);
+                    $fijaId = (int) $pdo->lastInsertId();
+                    $esFija = 1;
                 }
-            }
 
-            set_flash('success', __('msg_success_add'));
-            header("Location: " . app_url('index.php'));
-            exit;
+                // Insert into main transactions ledger
+                $stmt = $pdo->prepare("
+                    INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id, cuenta_id, metodo_pago) 
+                    VALUES (:tipo, :concepto, :monto, :categoria, :fecha, :es_fija, :fija_id, :cuenta_id, :metodo_pago)
+                ");
+                $stmt->execute([
+                    ':tipo'        => $formData['tipo'],
+                    ':concepto'    => $formData['concepto'],
+                    ':monto'       => $amountFloat,
+                    ':categoria'   => $formData['categoria'],
+                    ':fecha'       => $formData['fecha'],
+                    ':es_fija'     => $esFija,
+                    ':fija_id'     => $fijaId,
+                    ':cuenta_id'   => $cuentaIdInt,
+                    ':metodo_pago' => $formData['metodo_pago']
+                ]);
+
+                // Update account balance if an account is linked
+                if ($cuentaIdInt) {
+                    if ($formData['tipo'] === 'expense') {
+                        $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual - :monto WHERE id = :id")
+                            ->execute([':monto' => $amountFloat, ':id' => $cuentaIdInt]);
+                    } else {
+                        $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual + :monto WHERE id = :id")
+                            ->execute([':monto' => $amountFloat, ':id' => $cuentaIdInt]);
+                    }
+                }
+
+                $pdo->commit();
+                set_flash('success', __('msg_success_add'));
+                header("Location: " . app_url('index.php'));
+                exit;
+            }
         } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             error_log("Database Insert Error: " . $e->getMessage());
             $errors[] = __('val_db_error');
         }
     }
 }
 
-// Preset standard categories for convenience
+// Preset standard categories
 $presetCategories = [
     __('cat_food'),
     __('cat_salary'),
@@ -184,7 +252,7 @@ $pageTitle = __('form_title');
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="row justify-content-center">
+<div class="row justify-content-center animate-form-entrance">
     <div class="col-12 col-md-8 col-lg-6">
         
         <!-- Navigation breadcrumb / Back link -->
@@ -226,29 +294,15 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 <?php endif; ?>
 
-                <form method="POST" action="agregar.php" novalidate>
+                <form method="POST" action="agregar.php" novalidate id="txForm">
                     
-                    <!-- Transaction Type (Radio Buttons styled as Segments) -->
+                    <!-- Transaction Type (Expense, Income, Transfer) -->
                     <div class="mb-3">
                         <label class="form-label fw-semibold small text-secondary">
                             <?= htmlspecialchars(__('form_field_type')) ?> <span class="text-danger">*</span>
                         </label>
                         <div class="row g-2">
-                            <div class="col-6">
-                                <input 
-                                    type="radio" 
-                                    class="btn-check" 
-                                    name="tipo" 
-                                    id="type_income" 
-                                    value="income" 
-                                    <?= ($formData['tipo'] === 'income') ? 'checked' : '' ?>
-                                >
-                                <label class="btn btn-outline-success w-100 py-2 d-flex align-items-center justify-content-center gap-2 rounded-3" for="type_income">
-                                    <i class="bi bi-arrow-down-left"></i>
-                                    <span class="fw-semibold"><?= htmlspecialchars(__('type_income')) ?></span>
-                                </label>
-                            </div>
-                            <div class="col-6">
+                            <div class="col-4">
                                 <input 
                                     type="radio" 
                                     class="btn-check" 
@@ -257,10 +311,107 @@ require_once __DIR__ . '/../includes/header.php';
                                     value="expense" 
                                     <?= ($formData['tipo'] === 'expense') ? 'checked' : '' ?>
                                 >
-                                <label class="btn btn-outline-danger w-100 py-2 d-flex align-items-center justify-content-center gap-2 rounded-3" for="type_expense">
+                                <label class="btn btn-outline-danger w-100 py-2 d-flex flex-column align-items-center justify-content-center gap-1 rounded-3" for="type_expense">
                                     <i class="bi bi-arrow-up-right"></i>
-                                    <span class="fw-semibold"><?= htmlspecialchars(__('type_expense')) ?></span>
+                                    <span class="fw-semibold small"><?= htmlspecialchars(__('type_expense')) ?></span>
                                 </label>
+                            </div>
+                            <div class="col-4">
+                                <input 
+                                    type="radio" 
+                                    class="btn-check" 
+                                    name="tipo" 
+                                    id="type_income" 
+                                    value="income" 
+                                    <?= ($formData['tipo'] === 'income') ? 'checked' : '' ?>
+                                >
+                                <label class="btn btn-outline-success w-100 py-2 d-flex flex-column align-items-center justify-content-center gap-1 rounded-3" for="type_income">
+                                    <i class="bi bi-arrow-down-left"></i>
+                                    <span class="fw-semibold small"><?= htmlspecialchars(__('type_income')) ?></span>
+                                </label>
+                            </div>
+                            <div class="col-4">
+                                <input 
+                                    type="radio" 
+                                    class="btn-check" 
+                                    name="tipo" 
+                                    id="type_transfer" 
+                                    value="transfer" 
+                                    <?= ($formData['tipo'] === 'transfer') ? 'checked' : '' ?>
+                                >
+                                <label class="btn btn-outline-primary w-100 py-2 d-flex flex-column align-items-center justify-content-center gap-1 rounded-3" for="type_transfer">
+                                    <i class="bi bi-arrow-left-right"></i>
+                                    <span class="fw-semibold small"><?= htmlspecialchars(__('type_transfer')) ?></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Transfer Accounts Group (Visible only when 'transfer' is selected) -->
+                    <div id="transferAccountsGroup" class="<?= ($formData['tipo'] === 'transfer') ? '' : 'd-none' ?>">
+                        <div class="p-3 bg-light rounded-3 border mb-3">
+                            <div class="row g-2 align-items-center">
+                                <div class="col-12 col-sm-5">
+                                    <label for="transfer_cuenta_origen" class="form-label fw-semibold small text-secondary">
+                                        <?= htmlspecialchars(__('form_source_account')) ?> <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select" id="transfer_cuenta_origen" name="cuenta_id">
+                                        <option value="0"><?= htmlspecialchars(__('form_select_source')) ?></option>
+                                        <?php foreach ($availableAccounts as $acc): ?>
+                                            <option value="<?= (int) $acc['id'] ?>" <?= ((string)$formData['cuenta_id'] === (string)$acc['id']) ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($acc['nombre']) ?> (<?= htmlspecialchars(format_currency((float) $acc['saldo_actual'])) ?>)
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-sm-2 text-center pt-sm-3">
+                                    <i class="bi bi-arrow-right text-primary fs-5 d-none d-sm-inline"></i>
+                                    <i class="bi bi-arrow-down text-primary fs-5 d-inline d-sm-none"></i>
+                                </div>
+                                <div class="col-12 col-sm-5">
+                                    <label for="transfer_cuenta_destino" class="form-label fw-semibold small text-secondary">
+                                        <?= htmlspecialchars(__('form_destination_account')) ?> <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select" id="transfer_cuenta_destino" name="cuenta_destino_id">
+                                        <option value="0"><?= htmlspecialchars(__('form_select_destination')) ?></option>
+                                        <?php foreach ($availableAccounts as $acc): ?>
+                                            <option value="<?= (int) $acc['id'] ?>" <?= ((string)$formData['cuenta_destino_id'] === (string)$acc['id']) ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($acc['nombre']) ?> (<?= htmlspecialchars(format_currency((float) $acc['saldo_actual'])) ?>)
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Regular Payment Method & Link to Account (Visible for Expense / Income) -->
+                    <div id="regularAccountGroup" class="<?= ($formData['tipo'] === 'transfer') ? 'd-none' : '' ?>">
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-sm-6">
+                                <label for="metodo_pago" class="form-label fw-semibold small text-secondary">
+                                    <?= htmlspecialchars(__('form_field_payment_method')) ?> <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="metodo_pago" name="metodo_pago">
+                                    <option value="debito" <?= ($formData['metodo_pago'] === 'debito') ? 'selected' : '' ?>><?= htmlspecialchars(__('method_debito')) ?></option>
+                                    <option value="credito" <?= ($formData['metodo_pago'] === 'credito') ? 'selected' : '' ?>><?= htmlspecialchars(__('method_credito')) ?></option>
+                                    <option value="transferencia" <?= ($formData['metodo_pago'] === 'transferencia') ? 'selected' : '' ?>><?= htmlspecialchars(__('method_transferencia')) ?></option>
+                                    <option value="efectivo" <?= ($formData['metodo_pago'] === 'efectivo') ? 'selected' : '' ?>><?= htmlspecialchars(__('method_efectivo')) ?></option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-sm-6">
+                                <label for="regular_cuenta_id" class="form-label fw-semibold small text-secondary">
+                                    <?= htmlspecialchars(__('form_field_link_account')) ?>
+                                </label>
+                                <select class="form-select" id="regular_cuenta_id" name="regular_cuenta_id">
+                                    <option value="0"><?= htmlspecialchars(__('option_no_account')) ?></option>
+                                    <?php foreach ($availableAccounts as $acc): ?>
+                                        <option value="<?= (int) $acc['id'] ?>" <?= ((string)$formData['cuenta_id'] === (string)$acc['id']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($acc['nombre']) ?> (<?= htmlspecialchars(format_currency((float) $acc['saldo_actual'])) ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -268,7 +419,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <!-- Concept / Description -->
                     <div class="mb-3">
                         <label for="concepto" class="form-label fw-semibold small text-secondary">
-                            <?= htmlspecialchars(__('form_field_concept')) ?> <span class="text-danger">*</span>
+                            <?= htmlspecialchars(__('form_field_concept')) ?>
                         </label>
                         <div class="input-group">
                             <span class="input-group-text bg-light text-secondary border-end-0">
@@ -281,8 +432,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 name="concepto" 
                                 maxlength="150" 
                                 placeholder="<?= htmlspecialchars(__('form_placeholder_concept')) ?>" 
-                                value="<?= htmlspecialchars($formData['concepto']) ?>" 
-                                required
+                                value="<?= htmlspecialchars($formData['concepto']) ?>"
                             >
                         </div>
                     </div>
@@ -329,37 +479,8 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                     </div>
 
-                    <!-- Payment Method & Link to Account / Card -->
-                    <div class="row g-3 mb-3">
-                        <div class="col-12 col-sm-6">
-                            <label for="metodo_pago" class="form-label fw-semibold small text-secondary">
-                                <?= htmlspecialchars(__('form_field_payment_method')) ?> <span class="text-danger">*</span>
-                            </label>
-                            <select class="form-select" id="metodo_pago" name="metodo_pago" required>
-                                <option value="debito" <?= ($formData['metodo_pago'] === 'debito') ? 'selected' : '' ?>><?= htmlspecialchars(__('method_debito')) ?></option>
-                                <option value="credito" <?= ($formData['metodo_pago'] === 'credito') ? 'selected' : '' ?>><?= htmlspecialchars(__('method_credito')) ?></option>
-                                <option value="transferencia" <?= ($formData['metodo_pago'] === 'transferencia') ? 'selected' : '' ?>><?= htmlspecialchars(__('method_transferencia')) ?></option>
-                                <option value="efectivo" <?= ($formData['metodo_pago'] === 'efectivo') ? 'selected' : '' ?>><?= htmlspecialchars(__('method_efectivo')) ?></option>
-                            </select>
-                        </div>
-
-                        <div class="col-12 col-sm-6">
-                            <label for="cuenta_id" class="form-label fw-semibold small text-secondary">
-                                <?= htmlspecialchars(__('form_field_link_account')) ?>
-                            </label>
-                            <select class="form-select" id="cuenta_id" name="cuenta_id">
-                                <option value="0"><?= htmlspecialchars(__('option_no_account')) ?></option>
-                                <?php foreach ($availableAccounts as $acc): ?>
-                                    <option value="<?= (int) $acc['id'] ?>" <?= ((string)$formData['cuenta_id'] === (string)$acc['id']) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($acc['nombre']) ?> (<?= htmlspecialchars(format_currency((float) $acc['saldo_actual'])) ?>)
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Category (With Datalist for typing or quick picking) -->
-                    <div class="mb-3">
+                    <!-- Category (Hidden if Transfer) -->
+                    <div class="mb-3" id="categoryGroup">
                         <label for="categoria" class="form-label fw-semibold small text-secondary">
                             <?= htmlspecialchars(__('form_field_category')) ?> <span class="text-danger">*</span>
                         </label>
@@ -374,8 +495,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 name="categoria" 
                                 maxlength="50" 
                                 placeholder="<?= htmlspecialchars(__('form_select_category')) ?>" 
-                                value="<?= htmlspecialchars($formData['categoria']) ?>" 
-                                required
+                                value="<?= htmlspecialchars($formData['categoria']) ?>"
                             >
                             <datalist id="categoriesList">
                                 <?php foreach ($presetCategories as $cat): ?>
@@ -385,29 +505,42 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                     </div>
 
-                    <!-- Option to also save as monthly recurring subscription -->
-                    <div class="form-check form-switch p-3 mb-4 bg-light rounded-3 border">
-                        <input 
-                            class="form-check-input ms-0 me-2" 
-                            type="checkbox" 
-                            role="switch" 
-                            id="es_recurrente" 
-                            name="es_recurrente" 
-                            value="1" 
-                            <?= (!empty($formData['es_recurrente'])) ? 'checked' : '' ?>
-                        >
-                        <label class="form-check-label fw-semibold small" for="es_recurrente">
-                            <i class="bi bi-arrow-repeat text-purple me-1"></i>
-                            <?= htmlspecialchars(__('form_save_as_recurring')) ?>
-                        </label>
-                        <div class="text-muted small ms-4">
-                            <?= htmlspecialchars(__('form_save_as_recurring_help')) ?>
+                    <!-- Recurring Subscription Switch (Hidden if Transfer) -->
+                    <div id="recurringSection" class="<?= ($formData['tipo'] === 'transfer') ? 'd-none' : '' ?>">
+                        <div class="form-check form-switch p-3 mb-3 bg-light rounded-3 border">
+                            <input 
+                                class="form-check-input ms-0 me-2" 
+                                type="checkbox" 
+                                role="switch" 
+                                id="es_recurrente" 
+                                name="es_recurrente" 
+                                value="1" 
+                                <?= (!empty($formData['es_recurrente'])) ? 'checked' : '' ?>
+                            >
+                            <label class="form-check-label fw-semibold small" for="es_recurrente">
+                                <i class="bi bi-arrow-repeat text-purple me-1"></i>
+                                <?= htmlspecialchars(__('form_save_as_recurring')) ?>
+                            </label>
+                            <div class="text-muted small ms-4">
+                                <?= htmlspecialchars(__('form_save_as_recurring_help')) ?>
+                            </div>
+
+                            <div class="mt-3 ms-4 <?= (!empty($formData['es_recurrente'])) ? '' : 'd-none' ?>" id="recurringFreqPicker">
+                                <label for="frecuencia" class="form-label fw-semibold small text-secondary">
+                                    <?= htmlspecialchars(__('form_field_frequency')) ?>
+                                </label>
+                                <select class="form-select form-select-sm" id="frecuencia" name="frecuencia">
+                                    <option value="mensual" <?= ($formData['frecuencia'] === 'mensual') ? 'selected' : '' ?>><?= htmlspecialchars(__('freq_mensual')) ?></option>
+                                    <option value="quincenal" <?= ($formData['frecuencia'] === 'quincenal') ? 'selected' : '' ?>><?= htmlspecialchars(__('freq_quincenal')) ?></option>
+                                    <option value="anual" <?= ($formData['frecuencia'] === 'anual') ? 'selected' : '' ?>><?= htmlspecialchars(__('freq_anual')) ?></option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Actions Buttons -->
                     <div class="d-flex justify-content-end align-items-center gap-2 pt-2 border-top">
-                        <a href="<?= htmlspecialchars(app_url('index.php')) ?>" class="btn btn-light px-4 text-secondary rounded-pill">
+                        <a href="<?= htmlspecialchars(app_url('index.php')) ?>" class="btn btn-cancel px-4 rounded-pill">
                             <?= htmlspecialchars(__('btn_cancel')) ?>
                         </a>
                         <button type="submit" class="btn btn-primary px-4 rounded-pill shadow-sm d-inline-flex align-items-center gap-2">
@@ -423,5 +556,59 @@ require_once __DIR__ . '/../includes/header.php';
 
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const typeRadios = document.querySelectorAll('input[name="tipo"]');
+        const transferGroup = document.getElementById('transferAccountsGroup');
+        const regularGroup = document.getElementById('regularAccountGroup');
+        const recurringSection = document.getElementById('recurringSection');
+        const categoryGroup = document.getElementById('categoryGroup');
+        const regularAccSelect = document.getElementById('regular_cuenta_id');
+        const transferSourceSelect = document.getElementById('transfer_cuenta_origen');
+
+        const updateTypeUI = (type) => {
+            if (type === 'transfer') {
+                if (transferGroup) transferGroup.classList.remove('d-none');
+                if (regularGroup) regularGroup.classList.add('d-none');
+                if (recurringSection) recurringSection.classList.add('d-none');
+                if (categoryGroup) categoryGroup.classList.add('d-none');
+            } else {
+                if (transferGroup) transferGroup.classList.add('d-none');
+                if (regularGroup) regularGroup.classList.remove('d-none');
+                if (recurringSection) recurringSection.classList.remove('d-none');
+                if (categoryGroup) categoryGroup.classList.remove('d-none');
+            }
+        };
+
+        typeRadios.forEach(radio => {
+            radio.addEventListener('change', function () {
+                updateTypeUI(this.value);
+            });
+        });
+
+        // Sync regular account selection with transfer source if switched
+        if (regularAccSelect && transferSourceSelect) {
+            regularAccSelect.addEventListener('change', function () {
+                if (this.value) {
+                    transferSourceSelect.value = this.value;
+                }
+            });
+        }
+
+        // Toggle frequency picker inside recurring switch
+        const recurringSwitch = document.getElementById('es_recurrente');
+        const freqPicker = document.getElementById('recurringFreqPicker');
+        if (recurringSwitch && freqPicker) {
+            recurringSwitch.addEventListener('change', function () {
+                if (this.checked) {
+                    freqPicker.classList.remove('d-none');
+                } else {
+                    freqPicker.classList.add('d-none');
+                }
+            });
+        }
+    });
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -1,7 +1,7 @@
 <?php
 /**
  * Dashboard & Transactions Overview
- * Gestor de Presupuesto Personal y Control de Gastos - Phase 1+
+ * Gestor de Presupuesto Personal y Control de Gastos - Phase 2
  */
 
 declare(strict_types=1);
@@ -13,6 +13,7 @@ $pdo = getDB();
 
 // -------------------------------------------------------------
 // 1. Fetch Financial Totals (Actual Recorded Ledger)
+// Internal transfers are excluded from net income/expense to preserve accurate net balance
 // -------------------------------------------------------------
 $totalIncome = 0.0;
 $totalExpense = 0.0;
@@ -21,6 +22,7 @@ try {
     $totalsStmt = $pdo->query("
         SELECT tipo, COALESCE(SUM(monto), 0) AS subtotal 
         FROM transacciones 
+        WHERE tipo IN ('income', 'expense')
         GROUP BY tipo
     ");
     $totals = $totalsStmt->fetchAll();
@@ -39,19 +41,29 @@ try {
 $netBalance = $totalIncome - $totalExpense;
 
 // -------------------------------------------------------------
-// 2. Fetch Active Fixed / Subscriptions Summary
+// 2. Fetch Active Fixed / Subscriptions Summary (Monthly Equivalent)
 // -------------------------------------------------------------
 $totalFixedMonthly = 0.0;
 $fixedCount = 0;
 try {
     $fixedStmt = $pdo->query("
-        SELECT COUNT(*) as cnt, COALESCE(SUM(monto), 0) as total_fixed 
+        SELECT tipo, frecuencia, monto 
         FROM transacciones_fijas 
         WHERE activo = 1 AND tipo = 'expense'
     ");
-    $fixedData = $fixedStmt->fetch();
-    $fixedCount = (int) ($fixedData['cnt'] ?? 0);
-    $totalFixedMonthly = (float) ($fixedData['total_fixed'] ?? 0);
+    $fixedRows = $fixedStmt->fetchAll();
+    foreach ($fixedRows as $fr) {
+        $freq = $fr['frecuencia'] ?? 'mensual';
+        $m = (float) $fr['monto'];
+        if ($freq === 'quincenal') {
+            $totalFixedMonthly += ($m * 2);
+        } elseif ($freq === 'anual') {
+            $totalFixedMonthly += ($m / 12);
+        } else {
+            $totalFixedMonthly += $m;
+        }
+        $fixedCount++;
+    }
 } catch (PDOException $e) {
     error_log("Error fetching fixed totals: " . $e->getMessage());
 }
@@ -71,15 +83,18 @@ try {
 }
 
 // -------------------------------------------------------------
-// 4. Fetch All Transactions with Account Names
+// 4. Fetch All Transactions with Source and Destination Accounts
 // -------------------------------------------------------------
 $transactions = [];
 try {
     $stmt = $pdo->query("
-        SELECT t.id, t.tipo, t.concepto, t.monto, t.categoria, t.fecha, t.es_fija, t.fija_id, t.cuenta_id, t.metodo_pago,
-               c.nombre AS nombre_cuenta, c.tipo AS tipo_cuenta
+        SELECT t.id, t.tipo, t.concepto, t.monto, t.categoria, t.fecha, t.es_fija, t.fija_id, 
+               t.cuenta_id, t.cuenta_destino_id, t.metodo_pago,
+               c_src.nombre AS nombre_cuenta_origen, c_src.tipo AS tipo_cuenta_origen,
+               c_dest.nombre AS nombre_cuenta_destino, c_dest.tipo AS tipo_cuenta_destino
         FROM transacciones t 
-        LEFT JOIN cuentas c ON t.cuenta_id = c.id
+        LEFT JOIN cuentas c_src ON t.cuenta_id = c_src.id
+        LEFT JOIN cuentas c_dest ON t.cuenta_destino_id = c_dest.id
         ORDER BY t.fecha DESC, t.id DESC
     ");
     $transactions = $stmt->fetchAll();
@@ -196,15 +211,15 @@ require_once __DIR__ . '/includes/header.php';
                     <h6 class="fw-bold mb-0 text-slate-800">
                         <?= htmlspecialchars(__('recurring_title')) ?>: 
                         <span class="text-primary"><?= htmlspecialchars(format_currency($totalFixedMonthly)) ?></span>
-                        <span class="text-muted small fw-normal">/ <?= current_lang() === 'es' ? 'mes en compromisos fijos' : 'month in fixed commitments' ?></span>
+                        <span class="text-muted small fw-normal">/ <?= htmlspecialchars(__('monthly_equivalent')) ?></span>
                     </h6>
                     <small class="text-secondary">
-                        <?= current_lang() === 'es' ? 'Tienes ' . $fixedCount . ' suscripciones o pagos periódicos activos configurados.' : 'You have ' . $fixedCount . ' active subscriptions or scheduled payments.' ?>
+                        <?= $fixedCount ?> <?= htmlspecialchars(__('nav_recurring')) ?>
                     </small>
                 </div>
             </div>
             <a href="<?= htmlspecialchars(app_url('pages/fijas.php')) ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3 align-self-start align-self-sm-center">
-                <?= current_lang() === 'es' ? 'Ver Suscripciones' : 'View Subscriptions' ?> <i class="bi bi-arrow-right ms-1"></i>
+                <?= htmlspecialchars(__('recurring_title')) ?> <i class="bi bi-arrow-right ms-1"></i>
             </a>
         </div>
     </div>
@@ -241,7 +256,7 @@ require_once __DIR__ . '/includes/header.php';
             </div>
         <?php else: ?>
             <div class="table-responsive">
-                <table class="table table-custom table-hover align-middle mb-0">
+                <table class="table table-sm table-custom table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th class="ps-4" style="width: 5%;"><?= htmlspecialchars(__('col_id')) ?></th>
@@ -277,9 +292,16 @@ require_once __DIR__ . '/includes/header.php';
                                             </span>
                                         <?php endif; ?>
                                     </div>
-                                    <?php if (!empty($tx['nombre_cuenta'])): ?>
+                                    <?php if ($tx['tipo'] === 'transfer'): ?>
+                                        <div class="small text-muted mt-1 d-flex align-items-center gap-1" style="font-size: 0.72rem;">
+                                            <i class="bi bi-arrow-left-right text-primary"></i>
+                                            <span class="fw-medium text-dark"><?= htmlspecialchars($tx['nombre_cuenta_origen'] ?? 'Origen') ?></span>
+                                            <span>➔</span>
+                                            <span class="fw-medium text-dark"><?= htmlspecialchars($tx['nombre_cuenta_destino'] ?? 'Destino') ?></span>
+                                        </div>
+                                    <?php elseif (!empty($tx['nombre_cuenta_origen'])): ?>
                                         <div class="small text-muted mt-1" style="font-size: 0.72rem;">
-                                            <i class="bi bi-credit-card me-1 text-primary"></i><?= htmlspecialchars($tx['nombre_cuenta']) ?>
+                                            <i class="bi bi-credit-card me-1 text-primary"></i><?= htmlspecialchars($tx['nombre_cuenta_origen']) ?>
                                         </div>
                                     <?php endif; ?>
                                 </td>
@@ -294,18 +316,25 @@ require_once __DIR__ . '/includes/header.php';
                                             <i class="bi bi-arrow-down-left"></i>
                                             <?= htmlspecialchars(__('type_income')) ?>
                                         </span>
-                                    <?php else: ?>
+                                    <?php elseif ($tx['tipo'] === 'expense'): ?>
                                         <span class="badge-expense d-inline-flex align-items-center gap-1">
                                             <i class="bi bi-arrow-up-right"></i>
                                             <?= htmlspecialchars(__('type_expense')) ?>
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle d-inline-flex align-items-center gap-1">
+                                            <i class="bi bi-arrow-left-right"></i>
+                                            <?= htmlspecialchars(__('type_transfer')) ?>
                                         </span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end fw-bold">
                                     <?php if ($tx['tipo'] === 'income'): ?>
                                         <span class="text-success">+<?= htmlspecialchars(format_currency((float) $tx['monto'])) ?></span>
-                                    <?php else: ?>
+                                    <?php elseif ($tx['tipo'] === 'expense'): ?>
                                         <span class="text-danger">-<?= htmlspecialchars(format_currency((float) $tx['monto'])) ?></span>
+                                    <?php else: ?>
+                                        <span class="text-slate-800"><?= htmlspecialchars(format_currency((float) $tx['monto'])) ?></span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-center pe-4">

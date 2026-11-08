@@ -1,6 +1,6 @@
 <?php
 /**
- * Monthly Fixed Payments & Subscriptions Manager
+ * Fixed Payments & Subscriptions Manager (Monthly, Biweekly, Annual)
  * Gestor de Presupuesto Personal y Control de Gastos
  */
 
@@ -13,7 +13,16 @@ $pdo = getDB();
 $currentYearMonth = date('Y-m');
 
 // -------------------------------------------------------------
-// Handle POST Actions (Create, Toggle, Apply, Delete)
+// Helper: Map month number (1-12) to localized name
+// -------------------------------------------------------------
+function getMonthName(int $m): string
+{
+    $key = "month_{$m}";
+    return __($key);
+}
+
+// -------------------------------------------------------------
+// Handle POST Actions (Create, Toggle, Apply, Delete, Update)
 // -------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -24,11 +33,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $concepto   = trim($_POST['concepto'] ?? '');
         $monto      = trim($_POST['monto'] ?? '');
         $categoria  = trim($_POST['categoria'] ?? '');
+        $frecuencia = trim($_POST['frecuencia'] ?? 'mensual');
         $diaPago    = filter_var($_POST['dia_pago'] ?? 1, FILTER_VALIDATE_INT);
+        $diaPago2   = filter_var($_POST['dia_pago_2'] ?? 0, FILTER_VALIDATE_INT);
+        $mesPago    = filter_var($_POST['mes_pago'] ?? 1, FILTER_VALIDATE_INT);
         $metodoPago = trim($_POST['metodo_pago'] ?? 'debito');
         $cuentaId   = filter_var($_POST['cuenta_id'] ?? 0, FILTER_VALIDATE_INT);
+
         if ($cuentaId <= 0) {
             $cuentaId = null;
+        }
+
+        $validFrequencies = ['mensual', 'quincenal', 'anual'];
+        if (!in_array($frecuencia, $validFrequencies, true)) {
+            $frecuencia = 'mensual';
+        }
+
+        if ($frecuencia === 'quincenal') {
+            if ($diaPago2 === false || $diaPago2 < 1 || $diaPago2 > 31) {
+                // Sane default: 15 days after primary day
+                $diaPago2 = ($diaPago <= 15) ? min(31, $diaPago + 15) : max(1, $diaPago - 15);
+            }
+        } else {
+            $diaPago2 = null;
+        }
+
+        if ($frecuencia !== 'anual' || $mesPago < 1 || $mesPago > 12) {
+            $mesPago = 1;
         }
 
         $validMethods = ['debito', 'credito', 'transferencia', 'efectivo'];
@@ -61,25 +92,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $amountFloat = round((float) $monto, 2);
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO transacciones_fijas (tipo, concepto, monto, categoria, dia_pago, metodo_pago, cuenta_id, activo) 
-                    VALUES (:tipo, :concepto, :monto, :categoria, :dia_pago, :metodo_pago, :cuenta_id, 1)
+                    INSERT INTO transacciones_fijas (tipo, concepto, monto, categoria, frecuencia, dia_pago, dia_pago_2, mes_pago, metodo_pago, cuenta_id, activo) 
+                    VALUES (:tipo, :concepto, :monto, :categoria, :frecuencia, :dia_pago, :dia_pago_2, :mes_pago, :metodo_pago, :cuenta_id, 1)
                 ");
                 $stmt->execute([
                     ':tipo'        => $tipo,
                     ':concepto'    => $concepto,
                     ':monto'       => $amountFloat,
                     ':categoria'   => $categoria,
+                    ':frecuencia'  => $frecuencia,
                     ':dia_pago'    => $diaPago,
+                    ':dia_pago_2'  => $diaPago2,
+                    ':mes_pago'    => $mesPago,
                     ':metodo_pago' => $metodoPago,
                     ':cuenta_id'   => $cuentaId
                 ]);
 
-                // Check if user also requested to log it for the current month right now
+                // Check if user also requested to log it for the current cycle right now
                 if (!empty($_POST['apply_now'])) {
                     $newId = (int) $pdo->lastInsertId();
-                    $daysInCurrentMonth = (int) date('t');
-                    $execDay = min($diaPago, $daysInCurrentMonth);
-                    $execDate = date('Y-m-') . sprintf('%02d', $execDay);
+                    $execDate = date('Y-m-d');
 
                     $logStmt = $pdo->prepare("
                         INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, es_fija, fija_id, cuenta_id, metodo_pago) 
@@ -150,9 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $item = $fetchStmt->fetch();
 
                 if ($item) {
-                    $daysInCurrentMonth = (int) date('t');
-                    $execDay = min((int) $item['dia_pago'], $daysInCurrentMonth);
-                    $execDate = date('Y-m-') . sprintf('%02d', $execDay);
+                    $execDate = date('Y-m-d');
                     $montoFloat = (float) $item['monto'];
 
                     $insStmt = $pdo->prepare("
@@ -195,22 +225,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Action 4: Apply all active pending subscriptions for this month
+    // Action 4: Apply all active pending subscriptions for this cycle
     if ($action === 'apply_all') {
         try {
             $pendingStmt = $pdo->query("
                 SELECT * FROM transacciones_fijas 
                 WHERE activo = 1 
-                  AND (ultima_generacion IS NULL OR DATE_FORMAT(ultima_generacion, '%Y-%m') != DATE_FORMAT(CURRENT_DATE(), '%Y-%m'))
+                  AND (
+                      (frecuencia = 'mensual' AND (ultima_generacion IS NULL OR DATE_FORMAT(ultima_generacion, '%Y-%m') != DATE_FORMAT(CURRENT_DATE(), '%Y-%m')))
+                      OR (frecuencia = 'anual' AND (ultima_generacion IS NULL OR DATE_FORMAT(ultima_generacion, '%Y') != DATE_FORMAT(CURRENT_DATE(), '%Y')))
+                      OR (frecuencia = 'quincenal' AND (ultima_generacion IS NULL OR DATEDIFF(CURRENT_DATE(), ultima_generacion) >= 14))
+                  )
             ");
             $pendingItems = $pendingStmt->fetchAll();
 
-            $daysInCurrentMonth = (int) date('t');
             $appliedCount = 0;
+            $execDate = date('Y-m-d');
 
             foreach ($pendingItems as $item) {
-                $execDay = min((int) $item['dia_pago'], $daysInCurrentMonth);
-                $execDate = date('Y-m-') . sprintf('%02d', $execDay);
                 $montoFloat = (float) $item['monto'];
 
                 $insStmt = $pdo->prepare("
@@ -265,11 +297,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $concepto   = trim($_POST['concepto'] ?? '');
         $monto      = trim($_POST['monto'] ?? '');
         $categoria  = trim($_POST['categoria'] ?? '');
+        $frecuencia = trim($_POST['frecuencia'] ?? 'mensual');
         $diaPago    = filter_var($_POST['dia_pago'] ?? 1, FILTER_VALIDATE_INT);
+        $diaPago2   = filter_var($_POST['dia_pago_2'] ?? 0, FILTER_VALIDATE_INT);
+        $mesPago    = filter_var($_POST['mes_pago'] ?? 1, FILTER_VALIDATE_INT);
         $metodoPago = trim($_POST['metodo_pago'] ?? 'debito');
         $cuentaId   = filter_var($_POST['cuenta_id'] ?? 0, FILTER_VALIDATE_INT);
+
         if ($cuentaId <= 0) {
             $cuentaId = null;
+        }
+
+        $validFrequencies = ['mensual', 'quincenal', 'anual'];
+        if (!in_array($frecuencia, $validFrequencies, true)) {
+            $frecuencia = 'mensual';
+        }
+
+        if ($frecuencia === 'quincenal') {
+            if ($diaPago2 === false || $diaPago2 < 1 || $diaPago2 > 31) {
+                $diaPago2 = ($diaPago <= 15) ? min(31, $diaPago + 15) : max(1, $diaPago - 15);
+            }
+        } else {
+            $diaPago2 = null;
+        }
+
+        if ($frecuencia !== 'anual' || $mesPago < 1 || $mesPago > 12) {
+            $mesPago = 1;
         }
 
         $validMethods = ['debito', 'credito', 'transferencia', 'efectivo'];
@@ -303,7 +356,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("
                     UPDATE transacciones_fijas 
                     SET tipo = :tipo, concepto = :concepto, monto = :monto, categoria = :categoria, 
-                        dia_pago = :dia_pago, metodo_pago = :metodo_pago, cuenta_id = :cuenta_id 
+                        frecuencia = :frecuencia, dia_pago = :dia_pago, dia_pago_2 = :dia_pago_2, mes_pago = :mes_pago, 
+                        metodo_pago = :metodo_pago, cuenta_id = :cuenta_id 
                     WHERE id = :id
                 ");
                 $stmt->execute([
@@ -311,7 +365,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':concepto'    => $concepto,
                     ':monto'       => $amountFloat,
                     ':categoria'   => $categoria,
+                    ':frecuencia'  => $frecuencia,
                     ':dia_pago'    => $diaPago,
+                    ':dia_pago_2'  => $diaPago2,
+                    ':mes_pago'    => $mesPago,
                     ':metodo_pago' => $metodoPago,
                     ':cuenta_id'   => $cuentaId,
                     ':id'          => $id
@@ -349,24 +406,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // -------------------------------------------------------------
-// Calculate Summary Totals for Active Recurring Transactions
+// Calculate Summary Totals for Active Recurring Transactions (Monthly Equivalent)
 // -------------------------------------------------------------
 $fixedExpenses = 0.0;
 $fixedIncome   = 0.0;
 
 try {
     $sumStmt = $pdo->query("
-        SELECT tipo, COALESCE(SUM(monto), 0) AS total 
+        SELECT tipo, frecuencia, monto 
         FROM transacciones_fijas 
-        WHERE activo = 1 
-        GROUP BY tipo
+        WHERE activo = 1
     ");
-    $sums = $sumStmt->fetchAll();
-    foreach ($sums as $row) {
+    $activeItems = $sumStmt->fetchAll();
+
+    foreach ($activeItems as $row) {
+        $freq = $row['frecuencia'] ?? 'mensual';
+        $monto = (float) $row['monto'];
+
+        if ($freq === 'quincenal') {
+            $monthlyEquiv = $monto * 2;
+        } elseif ($freq === 'anual') {
+            $monthlyEquiv = $monto / 12;
+        } else {
+            $monthlyEquiv = $monto;
+        }
+
         if ($row['tipo'] === 'expense') {
-            $fixedExpenses = (float) $row['total'];
+            $fixedExpenses += $monthlyEquiv;
         } elseif ($row['tipo'] === 'income') {
-            $fixedIncome = (float) $row['total'];
+            $fixedIncome += $monthlyEquiv;
         }
     }
 } catch (PDOException $e) {
@@ -394,19 +462,41 @@ $pendingCount = 0;
 
 try {
     $stmt = $pdo->query("
-        SELECT f.id, f.tipo, f.concepto, f.monto, f.categoria, f.dia_pago, f.metodo_pago, f.cuenta_id, f.activo, f.ultima_generacion,
-               c.nombre AS nombre_cuenta, c.tipo AS tipo_cuenta,
-               (f.ultima_generacion IS NOT NULL AND DATE_FORMAT(f.ultima_generacion, '%Y-%m') = DATE_FORMAT(CURRENT_DATE(), '%Y-%m')) AS ya_registrado_este_mes
+        SELECT f.id, f.tipo, f.concepto, f.monto, f.categoria, f.frecuencia, f.dia_pago, f.dia_pago_2, f.mes_pago, f.metodo_pago, f.cuenta_id, f.activo, f.ultima_generacion,
+               c.nombre AS nombre_cuenta, c.tipo AS tipo_cuenta
         FROM transacciones_fijas f
         LEFT JOIN cuentas c ON f.cuenta_id = c.id
-        ORDER BY f.dia_pago ASC, f.id ASC
+        ORDER BY f.frecuencia DESC, f.dia_pago ASC, f.id ASC
     ");
-    $recurringItems = $stmt->fetchAll();
+    $rawItems = $stmt->fetchAll();
 
-    foreach ($recurringItems as $item) {
-        if ((int)$item['activo'] === 1 && empty($item['ya_registrado_este_mes'])) {
+    $currentYm = date('Y-m');
+    $currentYear = date('Y');
+
+    foreach ($rawItems as $item) {
+        $freq = $item['frecuencia'] ?? 'mensual';
+        $isApplied = false;
+
+        if (!empty($item['ultima_generacion'])) {
+            $genYm = date('Y-m', strtotime($item['ultima_generacion']));
+            $genYear = date('Y', strtotime($item['ultima_generacion']));
+
+            if ($freq === 'anual') {
+                $isApplied = ($genYear === $currentYear);
+            } elseif ($freq === 'quincenal') {
+                // If generated within last 14 days
+                $diffDays = (int) (abs(time() - strtotime($item['ultima_generacion'])) / 86400);
+                $isApplied = ($diffDays < 14);
+            } else {
+                $isApplied = ($genYm === $currentYm);
+            }
+        }
+
+        $item['ya_registrado_este_ciclo'] = $isApplied;
+        if ((int)$item['activo'] === 1 && !$isApplied) {
             $pendingCount++;
         }
+        $recurringItems[] = $item;
     }
 } catch (PDOException $e) {
     error_log("Error fetching recurring items: " . $e->getMessage());
@@ -458,7 +548,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<!-- Summary Cards for Fixed Recurring Items -->
+<!-- Summary Cards for Fixed Recurring Items (Monthly Equivalent Projection) -->
 <div class="row g-3 mb-4">
     <!-- Fixed Income Card -->
     <div class="col-12 col-md-4">
@@ -474,7 +564,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-calendar-month text-success"></i>
-                <span><?= htmlspecialchars(__('type_income')) ?> / <?= current_lang() === 'es' ? 'mes' : 'month' ?></span>
+                <span><?= htmlspecialchars(__('type_income')) ?> / <?= htmlspecialchars(__('monthly_equivalent')) ?></span>
             </div>
         </div>
     </div>
@@ -493,7 +583,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-calendar-month text-danger"></i>
-                <span><?= htmlspecialchars(__('type_expense')) ?> / <?= current_lang() === 'es' ? 'mes' : 'month' ?></span>
+                <span><?= htmlspecialchars(__('type_expense')) ?> / <?= htmlspecialchars(__('monthly_equivalent')) ?></span>
             </div>
         </div>
     </div>
@@ -512,7 +602,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="small text-muted d-flex align-items-center gap-1">
                 <i class="bi bi-calculator"></i>
-                <span><?= current_lang() === 'es' ? 'Proyección mensual' : 'Monthly projection' ?></span>
+                <span><?= htmlspecialchars(__('card_net_balance')) ?> / <?= htmlspecialchars(__('monthly_equivalent')) ?></span>
             </div>
         </div>
     </div>
@@ -547,22 +637,45 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         <?php else: ?>
             <div class="table-responsive">
-                <table class="table table-custom table-hover align-middle mb-0">
+                <table class="table table-sm table-custom table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th class="ps-4" style="width: 5%;"><?= htmlspecialchars(__('col_id')) ?></th>
-                            <th style="width: 23%;"><?= htmlspecialchars(__('col_concept')) ?></th>
-                            <th style="width: 14%;"><?= htmlspecialchars(__('col_category')) ?></th>
-                            <th style="width: 13%;"><?= htmlspecialchars(__('col_billing_day')) ?></th>
-                            <th style="width: 15%;"><?= htmlspecialchars(__('col_payment_method')) ?></th>
-                            <th style="width: 8%;"><?= htmlspecialchars(__('col_type')) ?></th>
-                            <th class="text-end" style="width: 12%;"><?= htmlspecialchars(__('col_amount')) ?></th>
-                            <th class="text-center" style="width: 5%;"><?= htmlspecialchars(__('col_status')) ?></th>
-                            <th class="text-center pe-4" style="width: 5%;"><?= htmlspecialchars(__('col_actions')) ?></th>
+                            <th style="width: 22%;"><?= htmlspecialchars(__('col_concept')) ?></th>
+                            <th style="width: 12%;"><?= htmlspecialchars(__('col_category')) ?></th>
+                            <th style="width: 10%;"><?= htmlspecialchars(__('col_frequency')) ?></th>
+                            <th style="width: 16%;"><?= htmlspecialchars(__('col_billing_day')) ?></th>
+                            <th style="width: 14%;"><?= htmlspecialchars(__('col_payment_method')) ?></th>
+                            <th style="width: 7%;"><?= htmlspecialchars(__('col_type')) ?></th>
+                            <th class="text-end" style="width: 11%;"><?= htmlspecialchars(__('col_amount')) ?></th>
+                            <th class="text-center" style="width: 6%;"><?= htmlspecialchars(__('col_status')) ?></th>
+                            <th class="text-center pe-4" style="width: 7%;"><?= htmlspecialchars(__('col_actions')) ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($recurringItems as $item): ?>
+                            <?php
+                                $freq = $item['frecuencia'] ?? 'mensual';
+                                $freqBadgeClass = 'bg-primary-subtle text-primary';
+                                $freqLabel = __('freq_mensual');
+                                if ($freq === 'quincenal') {
+                                    $freqBadgeClass = 'bg-warning-subtle text-warning-emphasis';
+                                    $freqLabel = __('freq_quincenal');
+                                } elseif ($freq === 'anual') {
+                                    $freqBadgeClass = 'bg-purple-subtle text-purple';
+                                    $freqLabel = __('freq_anual');
+                                }
+
+                                // Monthly equivalent calculation
+                                $montoItem = (float) $item['monto'];
+                                if ($freq === 'quincenal') {
+                                    $equivMensual = $montoItem * 2;
+                                } elseif ($freq === 'anual') {
+                                    $equivMensual = $montoItem / 12;
+                                } else {
+                                    $equivMensual = $montoItem;
+                                }
+                            ?>
                             <tr>
                                 <td class="ps-4 text-muted small fw-mono">
                                     #<?= (int) $item['id'] ?>
@@ -572,7 +685,7 @@ require_once __DIR__ . '/../includes/header.php';
                                         <?= htmlspecialchars($item['concepto']) ?>
                                     </div>
                                     <div class="small mt-1">
-                                        <?php if (!empty($item['ya_registrado_este_mes'])): ?>
+                                        <?php if (!empty($item['ya_registrado_este_ciclo'])): ?>
                                             <span class="badge bg-success-subtle text-success border border-success-subtle">
                                                 <i class="bi bi-check-circle-fill me-1"></i><?= htmlspecialchars(__('badge_applied_this_month')) ?>
                                             </span>
@@ -593,9 +706,26 @@ require_once __DIR__ . '/../includes/header.php';
                                     </span>
                                 </td>
                                 <td>
+                                    <span class="badge <?= $freqBadgeClass ?> border-0">
+                                        <?= htmlspecialchars($freqLabel) ?>
+                                    </span>
+                                </td>
+                                <td>
                                     <span class="small fw-medium text-dark d-inline-flex align-items-center gap-1">
                                         <i class="bi bi-calendar-event text-secondary"></i>
-                                        <?= htmlspecialchars(__('day_of_month_format', [':day' => $item['dia_pago']])) ?>
+                                        <?php if ($freq === 'quincenal'): ?>
+                                            <?= htmlspecialchars(__('day_biweekly_format', [
+                                                ':d1' => $item['dia_pago'],
+                                                ':d2' => $item['dia_pago_2'] ?? 15
+                                            ])) ?>
+                                        <?php elseif ($freq === 'anual'): ?>
+                                            <?= htmlspecialchars(__('day_annual_format', [
+                                                ':day'   => $item['dia_pago'],
+                                                ':month' => getMonthName((int)($item['mes_pago'] ?? 1))
+                                            ])) ?>
+                                        <?php else: ?>
+                                            <?= htmlspecialchars(__('day_of_month_format', [':day' => $item['dia_pago']])) ?>
+                                        <?php endif; ?>
                                     </span>
                                 </td>
                                 <td>
@@ -637,11 +767,19 @@ require_once __DIR__ . '/../includes/header.php';
                                 </td>
                                 <td class="text-end fw-bold">
                                     <?php if ($item['tipo'] === 'income'): ?>
-                                        <span class="text-success">+<?= htmlspecialchars(format_currency((float) $item['monto'])) ?></span>
+                                        <span class="text-success">+<?= htmlspecialchars(format_currency($montoItem)) ?></span>
                                     <?php else: ?>
-                                        <span class="text-danger">-<?= htmlspecialchars(format_currency((float) $item['monto'])) ?></span>
+                                        <span class="text-danger">-<?= htmlspecialchars(format_currency($montoItem)) ?></span>
                                     <?php endif; ?>
-                                    <div class="text-muted small" style="font-size: 0.7rem; font-weight: normal;">/ <?= current_lang() === 'es' ? 'mes' : 'mo' ?></div>
+                                    <?php if ($freq !== 'mensual'): ?>
+                                        <div class="text-muted small" style="font-size: 0.68rem; font-weight: normal;">
+                                            Eq. <?= htmlspecialchars(format_currency($equivMensual)) ?>/<?= current_lang() === 'es' ? 'mes' : 'mo' ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="text-muted small" style="font-size: 0.68rem; font-weight: normal;">
+                                            / <?= current_lang() === 'es' ? 'mes' : 'mo' ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="text-center">
                                     <form method="POST" action="fijas.php" class="d-inline">
@@ -670,7 +808,10 @@ require_once __DIR__ . '/../includes/header.php';
                                         data-tipo="<?= htmlspecialchars($item['tipo']) ?>"
                                         data-concepto="<?= htmlspecialchars($item['concepto'], ENT_QUOTES) ?>"
                                         data-monto="<?= htmlspecialchars((string) $item['monto']) ?>"
+                                        data-frecuencia="<?= htmlspecialchars($item['frecuencia'] ?? 'mensual') ?>"
                                         data-dia="<?= (int) $item['dia_pago'] ?>"
+                                        data-dia2="<?= (int) ($item['dia_pago_2'] ?? 15) ?>"
+                                        data-mes="<?= (int) ($item['mes_pago'] ?? 1) ?>"
                                         data-metodo="<?= htmlspecialchars($item['metodo_pago'] ?? 'debito') ?>"
                                         data-cuenta="<?= (int) ($item['cuenta_id'] ?? 0) ?>"
                                         data-categoria="<?= htmlspecialchars($item['categoria'], ENT_QUOTES) ?>"
@@ -711,7 +852,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <form method="POST" action="fijas.php" novalidate>
+            <form method="POST" action="fijas.php" novalidate id="newFixedForm">
                 <input type="hidden" name="action" value="create">
 
                 <div class="modal-body p-4">
@@ -747,11 +888,23 @@ require_once __DIR__ . '/../includes/header.php';
                             <span class="input-group-text bg-light text-secondary border-end-0">
                                 <i class="bi bi-card-text"></i>
                             </span>
-                            <input type="text" class="form-control border-start-0 ps-0" id="fixed_concepto" name="concepto" maxlength="150" placeholder="e.g. Netflix, Spotify, Gym, Rent, Salary" required>
+                            <input type="text" class="form-control border-start-0 ps-0" id="fixed_concepto" name="concepto" maxlength="150" placeholder="e.g. Netflix, Spotify, Gym, Rent, Insurance" required>
                         </div>
                     </div>
 
-                    <!-- Amount and Day of the Month -->
+                    <!-- Frequency (Monthly, Biweekly, Annual) -->
+                    <div class="mb-3">
+                        <label for="fixed_frecuencia" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_frequency')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="fixed_frecuencia" name="frecuencia" required>
+                            <option value="mensual" selected><?= htmlspecialchars(__('freq_mensual')) ?></option>
+                            <option value="quincenal"><?= htmlspecialchars(__('freq_quincenal')) ?></option>
+                            <option value="anual"><?= htmlspecialchars(__('freq_anual')) ?></option>
+                        </select>
+                    </div>
+
+                    <!-- Amount and Scheduling Dates -->
                     <div class="row g-3 mb-3">
                         <div class="col-6">
                             <label for="fixed_monto" class="form-label fw-semibold small text-secondary">
@@ -762,8 +915,10 @@ require_once __DIR__ . '/../includes/header.php';
                                 <input type="number" step="0.01" min="0.01" class="form-control border-start-0 ps-0" id="fixed_monto" name="monto" placeholder="0.00" required>
                             </div>
                         </div>
-                        <div class="col-6">
-                            <label for="fixed_dia_pago" class="form-label fw-semibold small text-secondary">
+
+                        <!-- Primary Day of the Month -->
+                        <div class="col-6" id="primaryDayCol">
+                            <label for="fixed_dia_pago" class="form-label fw-semibold small text-secondary" id="labelDiaPago">
                                 <?= htmlspecialchars(__('form_field_day_of_month')) ?> <span class="text-danger">*</span>
                             </label>
                             <div class="input-group">
@@ -773,6 +928,31 @@ require_once __DIR__ . '/../includes/header.php';
                                 <input type="number" min="1" max="31" class="form-control border-start-0 ps-0" id="fixed_dia_pago" name="dia_pago" value="1" required>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Biweekly: Second Day Field (Conditional) -->
+                    <div class="mb-3 d-none" id="biweeklyDayGroup">
+                        <label for="fixed_dia_pago_2" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_day_2')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-secondary border-end-0">
+                                <i class="bi bi-calendar2-day"></i>
+                            </span>
+                            <input type="number" min="1" max="31" class="form-control border-start-0 ps-0" id="fixed_dia_pago_2" name="dia_pago_2" value="15">
+                        </div>
+                    </div>
+
+                    <!-- Annual: Month of Billing (Conditional) -->
+                    <div class="mb-3 d-none" id="annualMonthGroup">
+                        <label for="fixed_mes_pago" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_month_annual')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="fixed_mes_pago" name="mes_pago">
+                            <?php for ($m = 1; $m <= 12; $m++): ?>
+                                <option value="<?= $m ?>"><?= getMonthName($m) ?></option>
+                            <?php endfor; ?>
+                        </select>
                     </div>
 
                     <!-- Payment Method (Debit / Credit / Transfer / Cash) -->
@@ -801,9 +981,6 @@ require_once __DIR__ . '/../includes/header.php';
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="form-text small">
-                            <?= current_lang() === 'es' ? 'Permite vincular este gasto a una tarjeta o cuenta bancaria para calcular su saldo restante proyectado.' : 'Links this recurring expense to a card to calculate its remaining balance.' ?>
-                        </div>
                     </div>
 
                     <!-- Category -->
@@ -828,17 +1005,14 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="form-check form-switch mt-3 p-3 bg-light rounded-3 border">
                         <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" id="apply_now" name="apply_now" value="1" checked>
                         <label class="form-check-label fw-semibold small" for="apply_now">
-                            <?= htmlspecialchars(__('btn_apply_to_month')) ?> (<?= date('F Y') ?>)
+                            <?= htmlspecialchars(__('btn_apply_to_month')) ?>
                         </label>
-                        <div class="text-muted small ms-4">
-                            <?= current_lang() === 'es' ? 'Crea también el registro en el libro diario para este mes actual y descuenta del saldo de la tarjeta si está vinculada.' : 'Also log an entry in your transactions ledger for the current month and update card balance.' ?>
-                        </div>
                     </div>
 
                 </div>
 
                 <div class="modal-footer border-top py-2 px-4">
-                    <button type="button" class="btn btn-sm btn-light px-3 rounded-pill text-secondary" data-bs-dismiss="modal">
+                    <button type="button" class="btn btn-sm btn-cancel px-3 rounded-pill" data-bs-dismiss="modal">
                         <?= htmlspecialchars(__('btn_cancel')) ?>
                     </button>
                     <button type="submit" class="btn btn-sm btn-primary px-4 rounded-pill shadow-sm">
@@ -868,7 +1042,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <form method="POST" action="fijas.php" novalidate>
+            <form method="POST" action="fijas.php" novalidate id="editFixedForm">
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="id" id="edit_fixed_id" value="">
 
@@ -909,7 +1083,19 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                     </div>
 
-                    <!-- Amount and Day of the Month -->
+                    <!-- Frequency -->
+                    <div class="mb-3">
+                        <label for="edit_fixed_frecuencia" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_frequency')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="edit_fixed_frecuencia" name="frecuencia" required>
+                            <option value="mensual"><?= htmlspecialchars(__('freq_mensual')) ?></option>
+                            <option value="quincenal"><?= htmlspecialchars(__('freq_quincenal')) ?></option>
+                            <option value="anual"><?= htmlspecialchars(__('freq_anual')) ?></option>
+                        </select>
+                    </div>
+
+                    <!-- Amount and Scheduling Dates -->
                     <div class="row g-3 mb-3">
                         <div class="col-6">
                             <label for="edit_fixed_monto" class="form-label fw-semibold small text-secondary">
@@ -931,6 +1117,31 @@ require_once __DIR__ . '/../includes/header.php';
                                 <input type="number" min="1" max="31" class="form-control border-start-0 ps-0" id="edit_fixed_dia_pago" name="dia_pago" required>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Biweekly Day 2 (Conditional) -->
+                    <div class="mb-3 d-none" id="editBiweeklyDayGroup">
+                        <label for="edit_fixed_dia_pago_2" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_day_2')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-secondary border-end-0">
+                                <i class="bi bi-calendar2-day"></i>
+                            </span>
+                            <input type="number" min="1" max="31" class="form-control border-start-0 ps-0" id="edit_fixed_dia_pago_2" name="dia_pago_2" value="15">
+                        </div>
+                    </div>
+
+                    <!-- Annual Month (Conditional) -->
+                    <div class="mb-3 d-none" id="editAnnualMonthGroup">
+                        <label for="edit_fixed_mes_pago" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_month_annual')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="edit_fixed_mes_pago" name="mes_pago">
+                            <?php for ($m = 1; $m <= 12; $m++): ?>
+                                <option value="<?= $m ?>"><?= getMonthName($m) ?></option>
+                            <?php endfor; ?>
+                        </select>
                     </div>
 
                     <!-- Payment Method -->
@@ -977,7 +1188,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
 
                 <div class="modal-footer border-top py-2 px-4">
-                    <button type="button" class="btn btn-sm btn-light px-3 rounded-pill text-secondary" data-bs-dismiss="modal">
+                    <button type="button" class="btn btn-sm btn-cancel px-3 rounded-pill" data-bs-dismiss="modal">
                         <?= htmlspecialchars(__('btn_cancel')) ?>
                     </button>
                     <button type="submit" class="btn btn-sm btn-primary px-4 rounded-pill shadow-sm">
@@ -991,6 +1202,41 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
+    // Wire up frequency changes for New Fixed modal
+    const freqSelect = document.getElementById('fixed_frecuencia');
+    const biweeklyGroup = document.getElementById('biweeklyDayGroup');
+    const annualGroup = document.getElementById('annualMonthGroup');
+
+    const handleFreqChange = (val, biweeklyEl, annualEl) => {
+        if (!biweeklyEl || !annualEl) return;
+        if (val === 'quincenal') {
+            biweeklyEl.classList.remove('d-none');
+            annualEl.classList.add('d-none');
+        } else if (val === 'anual') {
+            biweeklyEl.classList.add('d-none');
+            annualEl.classList.remove('d-none');
+        } else {
+            biweeklyEl.classList.add('d-none');
+            annualEl.classList.add('d-none');
+        }
+    };
+
+    if (freqSelect) {
+        freqSelect.addEventListener('change', function () {
+            handleFreqChange(this.value, biweeklyGroup, annualGroup);
+        });
+    }
+
+    const editFreqSelect = document.getElementById('edit_fixed_frecuencia');
+    const editBiweeklyGroup = document.getElementById('editBiweeklyDayGroup');
+    const editAnnualGroup = document.getElementById('editAnnualMonthGroup');
+
+    if (editFreqSelect) {
+        editFreqSelect.addEventListener('change', function () {
+            handleFreqChange(this.value, editBiweeklyGroup, editAnnualGroup);
+        });
+    }
+
     // Wire up Edit Fixed Transaction Modal with clicked row data
     document.addEventListener('DOMContentLoaded', function () {
         const editFixedModal = document.getElementById('editFixedModal');
@@ -1003,7 +1249,10 @@ require_once __DIR__ . '/../includes/header.php';
                 const tipo = button.getAttribute('data-tipo') || 'expense';
                 const concepto = button.getAttribute('data-concepto') || '';
                 const monto = button.getAttribute('data-monto') || '0';
+                const frecuencia = button.getAttribute('data-frecuencia') || 'mensual';
                 const dia = button.getAttribute('data-dia') || '1';
+                const dia2 = button.getAttribute('data-dia2') || '15';
+                const mes = button.getAttribute('data-mes') || '1';
                 const metodo = button.getAttribute('data-metodo') || 'debito';
                 const cuenta = button.getAttribute('data-cuenta') || '0';
                 const categoria = button.getAttribute('data-categoria') || '';
@@ -1011,7 +1260,10 @@ require_once __DIR__ . '/../includes/header.php';
                 const idEl = editFixedModal.querySelector('#edit_fixed_id');
                 const conceptoEl = editFixedModal.querySelector('#edit_fixed_concepto');
                 const montoEl = editFixedModal.querySelector('#edit_fixed_monto');
+                const freqEl = editFixedModal.querySelector('#edit_fixed_frecuencia');
                 const diaEl = editFixedModal.querySelector('#edit_fixed_dia_pago');
+                const dia2El = editFixedModal.querySelector('#edit_fixed_dia_pago_2');
+                const mesEl = editFixedModal.querySelector('#edit_fixed_mes_pago');
                 const catEl = editFixedModal.querySelector('#edit_fixed_categoria');
                 const metodoEl = editFixedModal.querySelector('#edit_fixed_metodo_pago');
                 const cuentaEl = editFixedModal.querySelector('#edit_fixed_cuenta_id');
@@ -1022,7 +1274,13 @@ require_once __DIR__ . '/../includes/header.php';
                     const parsedMonto = parseFloat(monto);
                     montoEl.value = isNaN(parsedMonto) ? '' : parsedMonto.toFixed(2);
                 }
+                if (freqEl) {
+                    freqEl.value = frecuencia;
+                    handleFreqChange(frecuencia, editBiweeklyGroup, editAnnualGroup);
+                }
                 if (diaEl) diaEl.value = dia;
+                if (dia2El) dia2El.value = dia2;
+                if (mesEl) mesEl.value = mes;
                 if (catEl) catEl.value = categoria;
                 if (metodoEl) metodoEl.value = metodo;
                 if (cuentaEl) cuentaEl.value = cuenta;

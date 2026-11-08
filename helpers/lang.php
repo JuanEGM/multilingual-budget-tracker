@@ -12,10 +12,14 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 /**
- * Supported language codes
+ * Supported language codes:
+ * - en: English
+ * - es: Spanish
+ * - fr: French
+ * - pt: Portuguese
  */
-const SUPPORTED_LANGS = ['en', 'es'];
-const DEFAULT_LANG = 'en';
+const SUPPORTED_LANGS = ['en', 'es', 'fr', 'pt'];
+const DEFAULT_LANG = 'es';
 
 // Fallback to default if no session language is set
 if (!isset($_SESSION['lang']) || !in_array($_SESSION['lang'], SUPPORTED_LANGS, true)) {
@@ -23,7 +27,7 @@ if (!isset($_SESSION['lang']) || !in_array($_SESSION['lang'], SUPPORTED_LANGS, t
 }
 
 /**
- * Retrieve current active language code ('en' or 'es')
+ * Retrieve current active language code ('en', 'es', 'fr', 'pt')
  * 
  * @return string
  */
@@ -67,8 +71,8 @@ function __(string $key, array $replacements = []): string
     $dict = load_language_dict($current);
 
     // Fallback to English dictionary if key is not found in current language
-    if (!isset($dict[$key]) && $current !== DEFAULT_LANG) {
-        $fallbackDict = load_language_dict(DEFAULT_LANG);
+    if (!isset($dict[$key]) && $current !== 'en') {
+        $fallbackDict = load_language_dict('en');
         $text = $fallbackDict[$key] ?? $key;
     } else {
         $text = $dict[$key] ?? $key;
@@ -109,7 +113,8 @@ function format_date(string $dateStr): string
         return htmlspecialchars($dateStr);
     }
 
-    if (current_lang() === 'es') {
+    $lang = current_lang();
+    if ($lang === 'es' || $lang === 'fr' || $lang === 'pt') {
         // e.g. 21/10/2026
         return date('d/m/Y', $timestamp);
     }

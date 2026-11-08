@@ -1,0 +1,1395 @@
+/**
+ * Fintech & Modern SaaS Design System (Linear / Vercel Aesthetic)
+ * Gestor Financiero - Personal Budget & Expense Manager
+ * Supports Dark & Light Modes seamlessly
+ */
+
+/* ==========================================================================
+   1. DESIGN TOKENS & CSS VARIABLES (DARK & LIGHT THEMES)
+   ========================================================================== */
+:root,
+[data-bs-theme="dark"] {
+    --bs-font-sans-serif: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --bs-font-monospace: 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+    /* Base Surfaces (Deep dark obsidian / navy palette) */
+    --bg-canvas: #090d16;
+    --bg-sidebar: #0d1424;
+    --bg-sidebar-hover: #141f36;
+    --bg-surface: #111a2e;
+    --bg-surface-elevated: #16223b;
+    --bg-surface-subtle: #0d1527;
+    --bg-subtle-hover: rgba(255, 255, 255, 0.04);
+
+    /* Borders */
+    --border-subtle: #1e293b;
+    --border-card: rgba(255, 255, 255, 0.08);
+    --border-hover: rgba(255, 255, 255, 0.16);
+    --border-accent: rgba(59, 130, 246, 0.45);
+
+    /* Text Colors */
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-disabled: #475569;
+
+    /* Semantic Accents */
+    --fintech-blue: #3b82f6;
+    --fintech-blue-subtle: rgba(59, 130, 246, 0.12);
+    --fintech-emerald: #10b981;
+    --fintech-emerald-subtle: rgba(16, 185, 129, 0.12);
+    --fintech-rose: #f43f5e;
+    --fintech-rose-subtle: rgba(244, 63, 94, 0.12);
+    --fintech-purple: #8b5cf6;
+    --fintech-purple-subtle: rgba(139, 92, 246, 0.12);
+    --fintech-amber: #f59e0b;
+    --fintech-amber-subtle: rgba(245, 158, 11, 0.12);
+
+    /* Component Tokens */
+    --card-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.45);
+    --card-shadow-hover: 0 8px 24px -4px rgba(0, 0, 0, 0.6);
+    --scrollbar-thumb: #1e293b;
+    --scrollbar-thumb-hover: #334155;
+    --statusbar-bg: #080c14;
+    --input-bg: #0b1120;
+    --table-header-bg: #0b1120;
+    --table-border-subtle: rgba(255, 255, 255, 0.04);
+    --table-text-muted: #64748b;
+}
+
+[data-bs-theme="light"] {
+    /* Base Surfaces (Crisp clean white / slate palette) */
+    --bg-canvas: #f8fafc;
+    --bg-sidebar: #ffffff;
+    --bg-sidebar-hover: #f1f5f9;
+    --bg-surface: #ffffff;
+    --bg-surface-elevated: #ffffff;
+    --bg-surface-subtle: #f8fafc;
+    --bg-subtle-hover: rgba(0, 0, 0, 0.035);
+
+    /* Borders */
+    --border-subtle: #e2e8f0;
+    --border-card: #e2e8f0;
+    --border-hover: #cbd5e1;
+    --border-accent: rgba(37, 99, 235, 0.45);
+
+    /* Text Colors */
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --text-disabled: #94a3b8;
+
+    /* Semantic Accents */
+    --fintech-blue: #2563eb;
+    --fintech-blue-subtle: rgba(37, 99, 235, 0.08);
+    --fintech-emerald: #059669;
+    --fintech-emerald-subtle: rgba(5, 150, 105, 0.1);
+    --fintech-rose: #e11d48;
+    --fintech-rose-subtle: rgba(225, 29, 72, 0.08);
+    --fintech-purple: #7c3aed;
+    --fintech-purple-subtle: rgba(124, 58, 237, 0.08);
+    --fintech-amber: #d97706;
+    --fintech-amber-subtle: rgba(217, 119, 6, 0.1);
+
+    /* Component Tokens */
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+    --card-shadow-hover: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 10px 15px -3px rgba(0, 0, 0, 0.06);
+    --scrollbar-thumb: #cbd5e1;
+    --scrollbar-thumb-hover: #94a3b8;
+    --statusbar-bg: #ffffff;
+    --input-bg: #ffffff;
+    --table-header-bg: #f8fafc;
+    --table-border-subtle: rgba(0, 0, 0, 0.05);
+    --table-text-muted: #64748b;
+}
+
+:root {
+    /* Dimensions */
+    --sidebar-width-expanded: 240px;
+    --sidebar-width-collapsed: 68px;
+    --topbar-height: 48px;
+    --statusbar-height: 28px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+}
+
+/* ==========================================================================
+   2. GLOBAL RESET & DESKTOP APP SHELL
+   ========================================================================== */
+html,
+body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    /* Cero scroll en la ventana global del navegador */
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--bs-font-sans-serif);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-size: 0.875rem;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Contenedor Maestro */
+.app-shell {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    position: relative;
+    background-color: var(--bg-canvas);
+}
+
+/* ==========================================================================
+   3. SIDEBAR VERTICAL (COMPACTA Y COLAPSABLE)
+   ========================================================================== */
+.app-sidebar {
+    width: var(--sidebar-width-expanded);
+    height: 100vh;
+    background-color: var(--bg-sidebar);
+    border-right: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    z-index: 1040;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, border-color 0.2s ease;
+    user-select: none;
+}
+
+/* Modo Móvil para Sidebar */
+@media (max-width: 991.98px) {
+    .app-sidebar {
+        position: fixed;
+        top: 0;
+        left: -260px;
+        height: 100vh;
+        width: 240px;
+        z-index: 1050;
+        transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .app-sidebar.mobile-open {
+        left: 0;
+        box-shadow: 0 0 50px rgba(0, 0, 0, 0.6);
+    }
+}
+
+/* Prevención de destellos de transición durante la carga de página (Anti-FOUC) */
+html.no-transitions *,
+html.no-transitions *::before,
+html.no-transitions *::after {
+    -webkit-transition: none !important;
+    -moz-transition: none !important;
+    -ms-transition: none !important;
+    -o-transition: none !important;
+    transition: none !important;
+}
+
+/* Modo Colapsado en Escritorio (Centrado Matemático en eje central de 34px) */
+html.sidebar-collapsed .app-sidebar,
+.app-shell.sidebar-collapsed .app-sidebar {
+    width: var(--sidebar-width-collapsed);
+}
+
+html.sidebar-collapsed .sidebar-hide-on-collapse,
+.app-shell.sidebar-collapsed .sidebar-hide-on-collapse {
+    display: none !important;
+    opacity: 0;
+}
+
+/* 1. Header (Logo / Inicio) */
+html.sidebar-collapsed .sidebar-header,
+.app-shell.sidebar-collapsed .sidebar-header {
+    padding: 0 !important;
+    justify-content: center !important;
+    width: 100% !important;
+}
+
+html.sidebar-collapsed .sidebar-header a,
+.app-shell.sidebar-collapsed .sidebar-header a {
+    justify-content: center !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+}
+
+html.sidebar-collapsed .app-brand-badge,
+.app-shell.sidebar-collapsed .app-brand-badge {
+    margin: 0 auto !important;
+}
+
+/* 2. Acción Rápida (+ Transacción) */
+html.sidebar-collapsed .sidebar-quick-action,
+.app-shell.sidebar-collapsed .sidebar-quick-action {
+    margin: 0.25rem 0 0.75rem !important;
+    padding: 0 10px !important;
+    width: 100% !important;
+}
+
+html.sidebar-collapsed .sidebar-quick-action a,
+.app-shell.sidebar-collapsed .sidebar-quick-action a {
+    justify-content: center !important;
+    padding: 0.45rem 0 !important;
+    width: 100% !important;
+}
+
+/* 3. Navegación (Enlaces Inicio, Fijas, Cuentas, Agregar) */
+html.sidebar-collapsed .sidebar-nav-group,
+.app-shell.sidebar-collapsed .sidebar-nav-group {
+    padding: 0.75rem 0 !important;
+}
+
+html.sidebar-collapsed .sidebar-nav-link,
+.app-shell.sidebar-collapsed .sidebar-nav-link {
+    justify-content: center !important;
+    padding: 0.65rem 0 !important;
+    margin: 2px 0 !important;
+    width: 100% !important;
+    border-radius: 0 !important;
+}
+
+html.sidebar-collapsed .sidebar-nav-link i,
+html.sidebar-collapsed .sidebar-nav-link svg,
+.app-shell.sidebar-collapsed .sidebar-nav-link i,
+.app-shell.sidebar-collapsed .sidebar-nav-link svg {
+    margin: 0 auto !important;
+}
+
+/* 4. Pie de la barra (Idioma y Botón Colapsar) */
+html.sidebar-collapsed .sidebar-footer,
+.app-shell.sidebar-collapsed .sidebar-footer {
+    padding: 0.5rem 0 !important;
+    width: 100% !important;
+    align-items: center !important;
+}
+
+html.sidebar-collapsed .sidebar-footer .dropdown,
+.app-shell.sidebar-collapsed .sidebar-footer .dropdown {
+    width: 100% !important;
+}
+
+html.sidebar-collapsed #sidebarLangDropdown,
+.app-shell.sidebar-collapsed #sidebarLangDropdown {
+    justify-content: center !important;
+    padding: 0.5rem 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+}
+
+html.sidebar-collapsed #sidebarLangDropdown .lang-btn-inner,
+.app-shell.sidebar-collapsed #sidebarLangDropdown .lang-btn-inner,
+html.sidebar-collapsed #sidebarLangDropdown>span,
+.app-shell.sidebar-collapsed #sidebarLangDropdown>span {
+    justify-content: center !important;
+    width: 100% !important;
+    gap: 0 !important;
+    margin: 0 auto !important;
+}
+
+html.sidebar-collapsed #sidebarLangDropdown i,
+html.sidebar-collapsed #sidebarLangDropdown svg,
+.app-shell.sidebar-collapsed #sidebarLangDropdown i,
+.app-shell.sidebar-collapsed #sidebarLangDropdown svg {
+    margin: 0 auto !important;
+}
+
+html.sidebar-collapsed #sidebarCollapseBtn,
+.app-shell.sidebar-collapsed #sidebarCollapseBtn {
+    justify-content: center !important;
+    padding: 0.5rem 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+}
+
+html.sidebar-collapsed #sidebarCollapseBtn i,
+html.sidebar-collapsed #sidebarCollapseBtn svg,
+.app-shell.sidebar-collapsed #sidebarCollapseBtn i,
+.app-shell.sidebar-collapsed #sidebarCollapseBtn svg {
+    margin: 0 auto !important;
+}
+
+/* Cabecera de la Sidebar */
+.sidebar-header {
+    height: var(--topbar-height);
+    display: flex;
+    align-items: center;
+    padding: 0 0.85rem;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.app-brand-badge {
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+    flex-shrink: 0;
+}
+
+/* Grupo de Enlaces y Navegación */
+.sidebar-nav-group {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.75rem 0.5rem;
+}
+
+.sidebar-section-title {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding: 0.5rem 0.65rem 0.25rem;
+}
+
+.sidebar-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.5rem 0.65rem;
+    margin-bottom: 2px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.8125rem;
+    transition: all 0.15s ease-in-out;
+    position: relative;
+}
+
+.sidebar-nav-link:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-subtle-hover);
+}
+
+/* Estado Activo Discreto */
+.sidebar-nav-link.active {
+    color: var(--fintech-blue);
+    background-color: var(--fintech-blue-subtle);
+    font-weight: 600;
+}
+
+.sidebar-nav-link.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    height: 60%;
+    width: 3px;
+    background-color: var(--fintech-blue);
+    border-radius: 0 4px 4px 0;
+}
+
+.sidebar-nav-link svg,
+.sidebar-nav-link i {
+    font-size: 1.05rem;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+/* Botón de Acción Rápida en Sidebar */
+.sidebar-quick-action {
+    margin: 0.25rem 0.5rem 0.75rem;
+}
+
+/* Pie de la Barra Lateral */
+.sidebar-footer {
+    border-top: 1px solid var(--border-subtle);
+    padding: 0.5rem;
+    background-color: rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+/* ==========================================================================
+   4. ÁREA PRINCIPAL & TOP CONTROL BAR
+   ========================================================================== */
+.app-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    background-color: var(--bg-canvas);
+    transition: background-color 0.2s ease;
+}
+
+/* Barra Superior de Control */
+.app-topbar {
+    height: var(--topbar-height);
+    background-color: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1rem;
+    flex-shrink: 0;
+    z-index: 1020;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Viewport Interno Scrollable */
+.app-viewport {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1.25rem 1.25rem 2rem;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* ==========================================================================
+   5. OVERRIDES BOOTSTRAP 5: TARJETAS, DENSIDAD Y TEMAS
+   ========================================================================== */
+.card,
+.card-stat {
+    background-color: var(--bg-surface) !important;
+    border: 1px solid var(--border-card) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: var(--card-shadow) !important;
+    color: var(--text-primary);
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
+}
+
+.card-stat:hover {
+    border-color: var(--border-hover) !important;
+    transform: translateY(-2px);
+    box-shadow: var(--card-shadow-hover) !important;
+}
+
+.card-header {
+    background-color: transparent !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    padding: 0.75rem 1rem !important;
+    color: var(--text-primary) !important;
+}
+
+.card-body {
+    padding: 1rem !important;
+}
+
+/* Mapeo Dinámico de Clases Claras/Oscuras */
+[data-bs-theme="dark"] .bg-white,
+[data-bs-theme="dark"] .bg-light {
+    background-color: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+}
+
+[data-bs-theme="dark"] .text-dark,
+[data-bs-theme="dark"] .text-slate-800,
+[data-bs-theme="dark"] .text-slate-900 {
+    color: var(--text-primary) !important;
+}
+
+[data-bs-theme="light"] .bg-white,
+[data-bs-theme="light"] .bg-light {
+    background-color: #ffffff !important;
+    color: var(--text-primary) !important;
+}
+
+[data-bs-theme="light"] .text-dark,
+[data-bs-theme="light"] .text-slate-800,
+[data-bs-theme="light"] .text-slate-900 {
+    color: var(--text-primary) !important;
+}
+
+.text-secondary {
+    color: var(--text-secondary) !important;
+}
+
+.text-muted {
+    color: var(--text-muted) !important;
+}
+
+/* ==========================================================================
+   6. TABLAS FINANCIERAS DENSAS
+   ========================================================================== */
+.table,
+.table-custom {
+    --bs-table-bg: transparent !important;
+    --bs-table-color: var(--text-primary) !important;
+    --bs-table-border-color: var(--border-subtle) !important;
+    margin-bottom: 0;
+}
+
+.table thead th,
+.table-light th {
+    background-color: var(--table-header-bg) !important;
+    color: var(--table-text-muted) !important;
+    font-size: 0.6875rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    font-weight: 600 !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    padding: 0.55rem 0.75rem !important;
+    white-space: nowrap;
+}
+
+.table tbody td {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.8125rem !important;
+    border-bottom: 1px solid var(--table-border-subtle) !important;
+    color: var(--text-primary) !important;
+    vertical-align: middle;
+}
+
+.table-hover tbody tr:hover td {
+    background-color: var(--bg-subtle-hover) !important;
+}
+
+/* Alineación Numérica Tabular */
+.tabular-nums,
+.fw-mono {
+    font-family: var(--bs-font-monospace);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   7. BADGES FINANCIEROS (SEMIOSTENSIVOS 10% OPACIDAD)
+   ========================================================================== */
+/* Dark Mode Badges */
+[data-bs-theme="dark"] .badge-income {
+    background-color: var(--fintech-emerald-subtle) !important;
+    color: #34d399 !important;
+    border: 1px solid rgba(16, 185, 129, 0.25) !important;
+}
+
+[data-bs-theme="dark"] .badge-expense {
+    background-color: var(--fintech-rose-subtle) !important;
+    color: #fb7185 !important;
+    border: 1px solid rgba(244, 63, 94, 0.25) !important;
+}
+
+[data-bs-theme="dark"] .badge-category {
+    background-color: rgba(148, 163, 184, 0.1) !important;
+    color: #94a3b8 !important;
+    border: 1px solid rgba(148, 163, 184, 0.18) !important;
+}
+
+[data-bs-theme="dark"] .badge-recurring-pill {
+    background-color: var(--fintech-purple-subtle) !important;
+    color: #c4b5fd !important;
+    border: 1px solid rgba(139, 92, 246, 0.25) !important;
+}
+
+/* Light Mode Badges */
+[data-bs-theme="light"] .badge-income {
+    background-color: rgba(16, 185, 129, 0.12) !important;
+    color: #047857 !important;
+    border: 1px solid rgba(16, 185, 129, 0.25) !important;
+}
+
+[data-bs-theme="light"] .badge-expense {
+    background-color: rgba(244, 63, 94, 0.12) !important;
+    color: #be123c !important;
+    border: 1px solid rgba(244, 63, 94, 0.25) !important;
+}
+
+[data-bs-theme="light"] .badge-category {
+    background-color: rgba(100, 116, 139, 0.1) !important;
+    color: #334155 !important;
+    border: 1px solid rgba(100, 116, 139, 0.2) !important;
+}
+
+[data-bs-theme="light"] .badge-recurring-pill {
+    background-color: rgba(139, 92, 246, 0.12) !important;
+    color: #6d28d9 !important;
+    border: 1px solid rgba(139, 92, 246, 0.25) !important;
+}
+
+.badge-income,
+.badge-expense,
+.badge-category,
+.badge-recurring-pill {
+    font-weight: 500;
+    font-size: 0.72rem;
+    padding: 0.25em 0.6em;
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.badge-recurring-pill {
+    border-radius: 9999px;
+    font-size: 0.7rem;
+}
+
+/* Burbujas de Estadísticas */
+.icon-bubble {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+
+.icon-bubble-income {
+    background: var(--fintech-emerald-subtle);
+    color: var(--fintech-emerald);
+}
+
+.icon-bubble-expense {
+    background: var(--fintech-rose-subtle);
+    color: var(--fintech-rose);
+}
+
+.icon-bubble-balance {
+    background: var(--fintech-blue-subtle);
+    color: var(--fintech-blue);
+}
+
+.icon-bubble-purple {
+    background: var(--fintech-purple-subtle);
+    color: var(--fintech-purple);
+}
+
+/* ==========================================================================
+   8. COMPONENTES DE FORMULARIO, BOTONES & MODALES
+   ========================================================================== */
+.form-control,
+.form-select {
+    background-color: var(--input-bg) !important;
+    border-color: var(--border-subtle) !important;
+    color: var(--text-primary) !important;
+    font-size: 0.8125rem;
+    border-radius: 8px;
+    padding: 0.45rem 0.75rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--fintech-blue) !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+.form-control::placeholder {
+    color: var(--text-muted);
+}
+
+.input-group-text {
+    background-color: var(--input-bg) !important;
+    border-color: var(--border-subtle) !important;
+    color: var(--text-secondary) !important;
+    font-size: 0.8125rem;
+}
+
+/* Botones con estilo Fintech */
+.btn-fintech-primary {
+    background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ffffff !important;
+    font-weight: 500;
+    font-size: 0.8125rem;
+    border-radius: 8px;
+    padding: 0.4rem 0.8rem;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+    transition: all 0.15s ease;
+}
+
+.btn-fintech-primary:hover {
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+}
+
+.btn-fintech-ghost {
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    border-radius: 8px;
+    padding: 0.35rem 0.65rem;
+    transition: all 0.15s ease;
+}
+
+.btn-fintech-ghost:hover {
+    background-color: var(--bg-subtle-hover);
+    color: var(--text-primary);
+    border-color: var(--border-hover);
+}
+
+/* Modales con apertura y cierre ultra fluidos estilo macOS / Linear */
+.modal {
+    z-index: 1060 !important;
+}
+
+.modal.show {
+    z-index: 1060 !important;
+    display: block !important;
+}
+
+.modal.fade {
+    transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.modal-backdrop {
+    z-index: 1050 !important;
+}
+
+.modal-backdrop.fade {
+    transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.modal-backdrop.show {
+    opacity: 0.72 !important;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.modal.fade .modal-dialog {
+    transform: scale(0.92) translateY(24px) !important;
+    opacity: 0 !important;
+    transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    pointer-events: auto !important;
+    position: relative;
+    z-index: 1061 !important;
+}
+
+.modal.show .modal-dialog {
+    transform: scale(1) translateY(0) !important;
+    opacity: 1 !important;
+}
+
+.modal-content {
+    background-color: var(--bg-surface-elevated) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: 0 25px 35px -5px rgba(0, 0, 0, 0.5), 0 10px 15px -5px rgba(0, 0, 0, 0.3) !important;
+    color: var(--text-primary);
+    pointer-events: auto !important;
+    position: relative;
+    z-index: 1062 !important;
+}
+
+.modal-header,
+.modal-footer {
+    border-color: var(--border-subtle) !important;
+}
+
+/* Menús Desplegables */
+.dropdown-menu {
+    background-color: var(--bg-surface-elevated) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25) !important;
+    color: var(--text-primary);
+}
+
+.dropdown-item {
+    color: var(--text-secondary) !important;
+    font-size: 0.8125rem;
+    border-radius: 6px;
+    padding: 0.4rem 0.75rem;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: var(--bg-subtle-hover) !important;
+    color: var(--text-primary) !important;
+}
+
+.dropdown-item.active {
+    background-color: var(--fintech-blue-subtle) !important;
+    color: var(--fintech-blue) !important;
+}
+
+/* Alertas Fintech */
+.alert-fintech {
+    background-color: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    border-radius: 10px;
+    font-size: 0.8125rem;
+    padding: 0.65rem 1rem;
+}
+
+/* ==========================================================================
+   9. BOOTSTRAP BUTTON & ACCENT OVERRIDES
+   ========================================================================== */
+.btn-primary {
+    background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+    font-weight: 500 !important;
+    font-size: 0.8125rem !important;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25) !important;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%) !important;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35) !important;
+}
+
+.btn-outline-primary:not(label):not(.btn-check + .btn) {
+    color: var(--fintech-blue) !important;
+    border-color: var(--fintech-blue) !important;
+    background: var(--fintech-blue-subtle) !important;
+    font-size: 0.8125rem !important;
+}
+
+.btn-outline-primary:not(label):not(.btn-check + .btn):hover {
+    color: #ffffff !important;
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+}
+
+.btn-outline-secondary {
+    color: var(--text-secondary) !important;
+    border-color: var(--border-subtle) !important;
+    background: transparent !important;
+    font-size: 0.8125rem !important;
+}
+
+.btn-outline-secondary:hover {
+    color: var(--text-primary) !important;
+    background: var(--bg-subtle-hover) !important;
+    border-color: var(--border-hover) !important;
+}
+
+.btn-outline-danger:not(label):not(.btn-check + .btn) {
+    color: var(--fintech-rose) !important;
+    border-color: rgba(244, 63, 94, 0.3) !important;
+    background: var(--fintech-rose-subtle) !important;
+}
+
+.btn-outline-danger:not(label):not(.btn-check + .btn):hover {
+    color: #ffffff !important;
+    background: #e11d48 !important;
+    border-color: #e11d48 !important;
+}
+
+/* ==========================================================================
+   BOTONES DE CANCELAR GLOBALES (ESTILO ROJO HIGH-CONTRAST)
+   Aplica a todos los modales, formularios y botones cancelar del sistema
+   ========================================================================== */
+.btn-cancel,
+button[data-bs-dismiss="modal"]:not(.btn-close):not(.btn-primary):not(.btn-danger):not(.btn-success),
+.modal-footer .btn-light,
+.border-top .btn-light,
+a.btn-light[href*="index.php"] {
+    background-color: rgba(244, 63, 94, 0.14) !important;
+    border: 1px solid rgba(244, 63, 94, 0.42) !important;
+    color: #fb7185 !important;
+    font-weight: 500 !important;
+    font-size: 0.8125rem !important;
+    transition: all 0.16s ease-in-out !important;
+    text-decoration: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.btn-cancel:hover,
+button[data-bs-dismiss="modal"]:not(.btn-close):not(.btn-primary):not(.btn-danger):not(.btn-success):hover,
+.modal-footer .btn-light:hover,
+.border-top .btn-light:hover,
+a.btn-light[href*="index.php"]:hover {
+    background-color: #f43f5e !important;
+    border-color: #f43f5e !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(244, 63, 94, 0.4) !important;
+    transform: translateY(-1px);
+}
+
+.btn-cancel:active,
+button[data-bs-dismiss="modal"]:not(.btn-close):not(.btn-primary):not(.btn-danger):not(.btn-success):active,
+.modal-footer .btn-light:active,
+.border-top .btn-light:active,
+a.btn-light[href*="index.php"]:active {
+    transform: scale(0.975);
+}
+
+/* Modo Claro: Botones Cancelar */
+[data-bs-theme="light"] .btn-cancel,
+[data-bs-theme="light"] button[data-bs-dismiss="modal"]:not(.btn-close):not(.btn-primary):not(.btn-danger):not(.btn-success),
+[data-bs-theme="light"] .modal-footer .btn-light,
+[data-bs-theme="light"] .border-top .btn-light,
+[data-bs-theme="light"] a.btn-light[href*="index.php"] {
+    background-color: rgba(225, 29, 72, 0.08) !important;
+    border: 1px solid rgba(225, 29, 72, 0.35) !important;
+    color: #e11d48 !important;
+}
+
+[data-bs-theme="light"] .btn-cancel:hover,
+[data-bs-theme="light"] button[data-bs-dismiss="modal"]:not(.btn-close):not(.btn-primary):not(.btn-danger):not(.btn-success):hover,
+[data-bs-theme="light"] .modal-footer .btn-light:hover,
+[data-bs-theme="light"] .border-top .btn-light:hover,
+[data-bs-theme="light"] a.btn-light[href*="index.php"]:hover {
+    background-color: #e11d48 !important;
+    border-color: #e11d48 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(225, 29, 72, 0.35) !important;
+}
+
+/* Conservar bordes de acento de tarjetas (ej. Cuentas y Tarjetas) */
+.card.border-start,
+.card-stat.border-start {
+    border-left-width: 4px !important;
+}
+
+.card.border-primary,
+.card-stat.border-primary {
+    border-left-color: var(--fintech-blue) !important;
+}
+
+.card.border-danger,
+.card-stat.border-danger {
+    border-left-color: var(--fintech-rose) !important;
+}
+
+.card.border-success,
+.card-stat.border-success {
+    border-left-color: var(--fintech-emerald) !important;
+}
+
+/* Alertas de Bootstrap estándar */
+.alert-success {
+    background-color: var(--fintech-emerald-subtle) !important;
+    border: 1px solid rgba(16, 185, 129, 0.3) !important;
+    color: var(--fintech-emerald) !important;
+}
+
+.alert-danger {
+    background-color: var(--fintech-rose-subtle) !important;
+    border: 1px solid rgba(244, 63, 94, 0.3) !important;
+    color: var(--fintech-rose) !important;
+}
+
+/* ==========================================================================
+   10. ICONOS DINÁMICOS CONTROLADOS POR CSS (0ms Latency)
+   ========================================================================== */
+/* Alternancia de tema: Sol / Luna */
+[data-bs-theme="dark"] .theme-icon-sun {
+    display: inline-block !important;
+}
+
+[data-bs-theme="dark"] .theme-icon-moon {
+    display: none !important;
+}
+
+[data-bs-theme="light"] .theme-icon-sun {
+    display: none !important;
+}
+
+[data-bs-theme="light"] .theme-icon-moon {
+    display: inline-block !important;
+}
+
+/* Alternancia de colapso de sidebar */
+.collapse-icon-close {
+    display: inline-block !important;
+}
+
+.collapse-icon-open {
+    display: none !important;
+}
+
+html.sidebar-collapsed .collapse-icon-close,
+.app-shell.sidebar-collapsed .collapse-icon-close {
+    display: none !important;
+}
+
+html.sidebar-collapsed .collapse-icon-open,
+.app-shell.sidebar-collapsed .collapse-icon-open {
+    display: inline-block !important;
+}
+
+/* ==========================================================================
+   11. ANIMACIONES DE ENTRADA Y CONTROLES INTERACTIVOS (SaaS Easing)
+   ========================================================================== */
+@keyframes fintechFormSlideUp {
+    0% {
+        opacity: 0;
+        transform: translateY(22px) scale(0.985);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.animate-form-entrance {
+    animation: fintechFormSlideUp 0.34s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    will-change: transform, opacity;
+}
+
+/* Micro-interacciones táctiles y estilos de selección pura en controles segmentados */
+.btn-check + .btn {
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.btn-check:checked + .btn {
+    transform: scale(1.02);
+}
+
+/* ==========================================================================
+   ESTADOS SELECCIONADOS EN COLOR PURO SÓLIDO (:checked)
+   Gasto / Retiro -> Rojo Puro Vibrante
+   Ingreso / Depósito -> Verde Puro Esmeralda
+   Transferencia -> Azul Puro Fintech
+   ========================================================================== */
+
+/* 1. Gasto / Sacar Saldo (Rojo Puro) */
+.btn-check:checked + .btn-outline-danger,
+.btn-check:checked + .btn-danger,
+input.btn-check:checked + label.btn-outline-danger {
+    background: #e11d48 !important;
+    background-color: #e11d48 !important;
+    border-color: #e11d48 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(225, 29, 72, 0.45) !important;
+}
+
+.btn-check:checked + .btn-outline-danger *,
+.btn-check:checked + .btn-danger *,
+input.btn-check:checked + label.btn-outline-danger * {
+    color: #ffffff !important;
+}
+
+/* 2. Ingreso / Ingresar Saldo (Verde Puro) */
+.btn-check:checked + .btn-outline-success,
+.btn-check:checked + .btn-success,
+input.btn-check:checked + label.btn-outline-success {
+    background: #059669 !important;
+    background-color: #059669 !important;
+    border-color: #059669 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(5, 150, 105, 0.45) !important;
+}
+
+.btn-check:checked + .btn-outline-success *,
+.btn-check:checked + .btn-success *,
+input.btn-check:checked + label.btn-outline-success * {
+    color: #ffffff !important;
+}
+
+/* 3. Transferencia Interna (Azul Puro) */
+.btn-check:checked + .btn-outline-primary,
+.btn-check:checked + .btn-primary,
+input.btn-check:checked + label.btn-outline-primary {
+    background: #2563eb !important;
+    background-color: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45) !important;
+}
+
+.btn-check:checked + .btn-outline-primary *,
+.btn-check:checked + .btn-primary *,
+input.btn-check:checked + label.btn-outline-primary * {
+    color: #ffffff !important;
+}
+
+/* ==========================================================================
+   ESTADOS NO SELECCIONADOS (Delineados limpios de alto contraste)
+   ========================================================================== */
+.btn-check:not(:checked) + .btn-outline-danger {
+    background: transparent !important;
+    border: 1px solid rgba(244, 63, 94, 0.38) !important;
+    color: #fb7185 !important;
+    box-shadow: none !important;
+}
+
+[data-bs-theme="light"] .btn-check:not(:checked) + .btn-outline-danger {
+    color: #e11d48 !important;
+    border-color: rgba(225, 29, 72, 0.4) !important;
+}
+
+.btn-check:not(:checked) + .btn-outline-danger * {
+    color: inherit !important;
+}
+
+.btn-check:not(:checked) + .btn-outline-success {
+    background: transparent !important;
+    border: 1px solid rgba(16, 185, 129, 0.38) !important;
+    color: #34d399 !important;
+    box-shadow: none !important;
+}
+
+[data-bs-theme="light"] .btn-check:not(:checked) + .btn-outline-success {
+    color: #059669 !important;
+    border-color: rgba(5, 150, 105, 0.4) !important;
+}
+
+.btn-check:not(:checked) + .btn-outline-success * {
+    color: inherit !important;
+}
+
+.btn-check:not(:checked) + .btn-outline-primary {
+    background: transparent !important;
+    border: 1px solid rgba(59, 130, 246, 0.38) !important;
+    color: #60a5fa !important;
+    box-shadow: none !important;
+}
+
+[data-bs-theme="light"] .btn-check:not(:checked) + .btn-outline-primary {
+    color: #2563eb !important;
+    border-color: rgba(37, 99, 235, 0.4) !important;
+}
+
+.btn-check:not(:checked) + .btn-outline-primary * {
+    color: inherit !important;
+}
+
+.btn-check + .btn:active {
+    transform: scale(0.97);
+}
+
+/* Micro-rebote de botones al presionar */
+.btn:active {
+    transform: scale(0.975);
+}
+
+/* ==========================================================================
+   12. NAVEGACIÓN SPA ULTRA FLUIDA & NANO PROGRESS BAR (Linear / YouTube Style)
+   ========================================================================== */
+.fintech-nav-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 0%;
+    height: 2.5px;
+    background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 50%, #10b981 100%);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.7);
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transition: width 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+}
+
+.fintech-nav-progress.loading {
+    opacity: 1;
+}
+
+.fintech-nav-progress.done {
+    width: 100% !important;
+    opacity: 0;
+    transition: width 0.15s ease, opacity 0.3s ease 0.1s;
+}
+
+/* Transiciones fluidas del área de contenido (Viewport) */
+.app-viewport {
+    transition: opacity 0.15s ease-out;
+}
+
+.app-viewport.is-navigating-out {
+    opacity: 0.25 !important;
+    transform: translateY(-4px) scale(0.998) !important;
+    will-change: opacity, transform;
+}
+
+.app-viewport.is-navigating-in {
+    animation: fintechViewportEntrance 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+    will-change: opacity, transform;
+}
+
+@keyframes fintechViewportEntrance {
+    0% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.995);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ==========================================================================
+   13. NAVEGACIÓN FLUIDA ENTRE PESTAÑAS (Nav-Tabs & Nav-Pills)
+   ========================================================================== */
+.nav-tabs,
+.nav-pills {
+    border-color: var(--border-subtle) !important;
+    gap: 4px;
+}
+
+.nav-tabs .nav-link,
+.nav-pills .nav-link {
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    padding: 0.45rem 0.85rem;
+    position: relative;
+    border: 1px solid transparent;
+}
+
+.nav-tabs .nav-link:hover,
+.nav-pills .nav-link:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-subtle-hover);
+    border-color: var(--border-subtle);
+}
+
+.nav-tabs .nav-link.active,
+.nav-pills .nav-link.active {
+    color: var(--fintech-blue) !important;
+    background-color: var(--fintech-blue-subtle) !important;
+    border-color: var(--border-accent) !important;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Transición suave entre paneles de contenido de pestañas */
+.tab-content>.tab-pane {
+    transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tab-content>.tab-pane.fade:not(.show) {
+    display: none;
+    opacity: 0;
+    transform: translateY(6px);
+}
+
+.tab-content>.tab-pane.fade.show {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ==========================================================================
+   14. APARTADO CUENTAS Y TARJETAS: ESTILO LIMPIO Y FRAMELESS (SIN CONTORNOS)
+   ========================================================================== */
+/* Regla global: Respeto absoluto a .border-0 en modo oscuro y en tarjetas */
+.card-stat.border-0,
+.card.border-0,
+[data-bs-theme="dark"] .border-0 {
+    border: none !important;
+}
+
+/* Tarjeta principal de cuenta (superficie limpia sin marcos toscos) */
+.account-card {
+    border: none !important;
+    background-color: var(--bg-surface) !important;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4) !important;
+}
+
+[data-bs-theme="dark"] .account-card,
+[data-bs-theme="dark"] .account-card .card-header,
+[data-bs-theme="dark"] .account-card .card-footer,
+[data-bs-theme="dark"] .account-card .border,
+[data-bs-theme="dark"] .account-card .border-bottom,
+[data-bs-theme="dark"] .account-card .border-top {
+    border: none !important;
+    border-color: transparent !important;
+}
+
+[data-bs-theme="dark"] .account-card .bg-light {
+    background-color: rgba(255, 255, 255, 0.018) !important;
+}
+
+/* Caja de cálculos mensuales (gastos vinculados, ingresos y saldo restante) */
+.account-calc-box {
+    background-color: rgba(255, 255, 255, 0.035) !important;
+    border: none !important;
+    border-radius: 12px;
+}
+
+[data-bs-theme="light"] .account-calc-box {
+    background-color: #f8fafc !important;
+    border: none !important;
+    border-radius: 12px;
+}
+
+/* Divisor sutil y limpio sin borde tosco */
+.account-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
+    border: none !important;
+    margin: 0.5rem 0;
+}
+
+[data-bs-theme="light"] .account-divider {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+/* Filas individuales de suscripciones / pagos fijos vinculados */
+.account-item-row {
+    background-color: rgba(255, 255, 255, 0.025) !important;
+    border: none !important;
+    border-radius: 8px;
+    transition: background-color 0.15s ease;
+}
+
+.account-item-row:hover {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+[data-bs-theme="light"] .account-item-row {
+    background-color: #f1f5f9 !important;
+    border: none !important;
+    border-radius: 8px;
+}
+
+[data-bs-theme="light"] .account-item-row:hover {
+    background-color: #e2e8f0 !important;
+}
+
+/* Botones de acción rápida en tarjetas de cuentas (sin contornos duros en modo oscuro) */
+[data-bs-theme="dark"] .account-card .btn-outline-success {
+    border: none !important;
+    background-color: rgba(16, 185, 129, 0.14) !important;
+    color: #34d399 !important;
+}
+
+[data-bs-theme="dark"] .account-card .btn-outline-success:hover {
+    background-color: rgba(16, 185, 129, 0.28) !important;
+    color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .account-card .btn-outline-danger {
+    border: none !important;
+    background-color: rgba(244, 63, 94, 0.14) !important;
+    color: #fb7185 !important;
+}
+
+[data-bs-theme="dark"] .account-card .btn-outline-danger:hover {
+    background-color: rgba(244, 63, 94, 0.28) !important;
+    color: #ffffff !important;
+}

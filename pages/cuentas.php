@@ -1,6 +1,6 @@
 <?php
 /**
- * Accounts & Debit/Credit Cards Management
+ * Accounts & Debit/Credit Cards Management with Direct Transfers
  * Gestor de Presupuesto Personal y Control de Gastos
  */
 
@@ -12,7 +12,7 @@ require_once __DIR__ . '/../helpers/lang.php';
 $pdo = getDB();
 
 // -------------------------------------------------------------
-// Handle POST Actions (Create, Adjust Balance, Delete)
+// Handle POST Actions (Create, Adjust Balance, Transfer, Delete)
 // -------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -84,7 +84,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Action 2: Add or Withdraw Balance Manually
+    // Action 2: Transfer funds between accounts / cards
+    if ($action === 'transfer') {
+        $sourceId  = filter_var($_POST['source_account_id'] ?? 0, FILTER_VALIDATE_INT);
+        $destId    = filter_var($_POST['destination_account_id'] ?? 0, FILTER_VALIDATE_INT);
+        $monto     = trim($_POST['monto'] ?? '0');
+        $concepto  = trim($_POST['concepto'] ?? '');
+        $fecha     = trim($_POST['fecha'] ?? date('Y-m-d'));
+
+        if (!$sourceId || !$destId || !is_numeric($monto) || (float) $monto <= 0) {
+            set_flash('danger', __('val_required_fields'));
+        } elseif ($sourceId === $destId) {
+            set_flash('danger', __('val_same_account'));
+        } else {
+            try {
+                $sourceStmt = $pdo->prepare("SELECT * FROM cuentas WHERE id = :id");
+                $sourceStmt->execute([':id' => $sourceId]);
+                $sourceAccount = $sourceStmt->fetch();
+
+                $destStmt = $pdo->prepare("SELECT * FROM cuentas WHERE id = :id");
+                $destStmt->execute([':id' => $destId]);
+                $destAccount = $destStmt->fetch();
+
+                if ($sourceAccount && $destAccount) {
+                    $amountFloat = round((float) $monto, 2);
+
+                    $pdo->beginTransaction();
+
+                    // 1. Deduct funds from source account
+                    $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual - :monto WHERE id = :id")
+                        ->execute([':monto' => $amountFloat, ':id' => $sourceId]);
+
+                    // 2. Add funds to destination account
+                    $pdo->prepare("UPDATE cuentas SET saldo_actual = saldo_actual + :monto WHERE id = :id")
+                        ->execute([':monto' => $amountFloat, ':id' => $destId]);
+
+                    // 3. Set meaningful description
+                    if (empty($concepto)) {
+                        $concepto = __('transfer_concept_default', [
+                            ':from' => $sourceAccount['nombre'],
+                            ':to'   => $destAccount['nombre']
+                        ]);
+                    }
+
+                    // 4. Log transfer in transaction ledger
+                    $txStmt = $pdo->prepare("
+                        INSERT INTO transacciones (tipo, concepto, monto, categoria, fecha, cuenta_id, cuenta_destino_id, metodo_pago) 
+                        VALUES ('transfer', :concepto, :monto, :categoria, :fecha, :cuenta_id, :cuenta_destino_id, :metodo_pago)
+                    ");
+                    $txStmt->execute([
+                        ':concepto'          => $concepto,
+                        ':monto'             => $amountFloat,
+                        ':categoria'         => __('cat_transfer'),
+                        ':fecha'             => !empty($fecha) ? $fecha : date('Y-m-d'),
+                        ':cuenta_id'         => $sourceId,
+                        ':cuenta_destino_id' => $destId,
+                        ':metodo_pago'       => $sourceAccount['tipo']
+                    ]);
+
+                    $pdo->commit();
+
+                    set_flash('success', __('msg_transfer_success'));
+                } else {
+                    set_flash('danger', __('val_db_error'));
+                }
+            } catch (PDOException $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                error_log("Error transferring funds: " . $e->getMessage());
+                set_flash('danger', __('val_db_error'));
+            }
+        }
+        header("Location: cuentas.php");
+        exit;
+    }
+
+    // Action 3: Add or Withdraw Balance Manually
     if ($action === 'adjust_balance') {
         $accountId  = filter_var($_POST['cuenta_id'] ?? 0, FILTER_VALIDATE_INT);
         $opType     = trim($_POST['op_type'] ?? 'add'); // 'add' or 'withdraw'
@@ -147,7 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Action 3: Delete Account
+    // Action 4: Delete Account
     if ($action === 'delete') {
         $id = filter_var($_POST['id'] ?? 0, FILTER_VALIDATE_INT);
         if ($id && $id > 0) {
@@ -166,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // -------------------------------------------------------------
-// Fetch All Accounts with Linked Monthly Fixed Expenses
+// Fetch All Accounts with Linked Recurring Expenses (Monthly, Biweekly, Annual)
 // -------------------------------------------------------------
 $accounts = [];
 $totalAllBalances = 0.0;
@@ -182,9 +258,9 @@ try {
         $currentBalance = (float) $acc['saldo_actual'];
         $totalAllBalances += $currentBalance;
 
-        // Fetch monthly active fixed items linked to this card/account
+        // Fetch active fixed items linked to this card/account
         $fixedStmt = $pdo->prepare("
-            SELECT id, tipo, concepto, monto, categoria, dia_pago 
+            SELECT id, tipo, concepto, monto, categoria, frecuencia, dia_pago, dia_pago_2, mes_pago 
             FROM transacciones_fijas 
             WHERE cuenta_id = :cuenta_id AND activo = 1 
             ORDER BY dia_pago ASC
@@ -194,18 +270,31 @@ try {
 
         $linkedExpenses = 0.0;
         $linkedIncome   = 0.0;
+
         foreach ($linkedFixedItems as $item) {
+            $freq = $item['frecuencia'] ?? 'mensual';
+            $itemMonto = (float) $item['monto'];
+
+            // Calculate monthly equivalent according to frequency
+            if ($freq === 'quincenal') {
+                $monthlyEquiv = $itemMonto * 2;
+            } elseif ($freq === 'anual') {
+                $monthlyEquiv = $itemMonto / 12;
+            } else {
+                $monthlyEquiv = $itemMonto;
+            }
+
             if ($item['tipo'] === 'expense') {
-                $linkedExpenses += (float) $item['monto'];
+                $linkedExpenses += $monthlyEquiv;
             } elseif ($item['tipo'] === 'income') {
-                $linkedIncome += (float) $item['monto'];
+                $linkedIncome += $monthlyEquiv;
             }
         }
 
         $totalAllLinkedFixedExpenses += $linkedExpenses;
         $totalAllLinkedFixedIncome   += $linkedIncome;
 
-        // Projected remaining balance on this card/account after covering linked fixed monthly expenses and income
+        // Projected remaining balance on this card/account after covering linked fixed monthly equivalent
         $remainingBalance = $currentBalance - $linkedExpenses + $linkedIncome;
 
         $acc['linked_fixed_items'] = $linkedFixedItems;
@@ -230,6 +319,12 @@ require_once __DIR__ . '/../includes/header.php';
         <p class="text-secondary mb-0 small"><?= htmlspecialchars(__('accounts_subtitle')) ?></p>
     </div>
     <div class="d-flex flex-wrap gap-2">
+        <?php if (count($accounts) >= 2): ?>
+            <button type="button" class="btn btn-outline-primary d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2 rounded-pill" data-bs-toggle="modal" data-bs-target="#transferModal">
+                <i class="bi bi-arrow-left-right"></i>
+                <span><?= htmlspecialchars(__('btn_transfer')) ?></span>
+            </button>
+        <?php endif; ?>
         <button type="button" class="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm px-3 py-2 rounded-pill" data-bs-toggle="modal" data-bs-target="#newAccountModal">
             <i class="bi bi-plus-circle-fill"></i>
             <span><?= htmlspecialchars(__('btn_new_account')) ?></span>
@@ -240,7 +335,7 @@ require_once __DIR__ . '/../includes/header.php';
 <!-- Total Summary Across All Accounts Banner -->
 <div class="row g-3 mb-4">
     <div class="col-12 col-md-4">
-        <div class="card card-stat h-100 p-3 border-start border-4 border-primary">
+        <div class="card card-stat h-100 p-3 border-0">
             <div class="d-flex justify-content-between align-items-center mb-1">
                 <span class="text-uppercase fw-semibold text-secondary small"><?= htmlspecialchars(__('total_liquid_balance')) ?></span>
                 <span class="icon-bubble icon-bubble-balance">
@@ -251,12 +346,12 @@ require_once __DIR__ . '/../includes/header.php';
                 <?= htmlspecialchars(format_currency($totalAllBalances)) ?>
             </div>
             <div class="small text-muted mt-1">
-                <i class="bi bi-credit-card-2-front me-1"></i><?= count($accounts) ?> <?= current_lang() === 'es' ? 'cuentas y tarjetas activas' : 'active accounts & cards' ?>
+                <i class="bi bi-credit-card-2-front me-1"></i><?= count($accounts) ?> <?= __('nav_accounts') ?>
             </div>
         </div>
     </div>
     <div class="col-12 col-md-4">
-        <div class="card card-stat h-100 p-3 border-start border-4 border-danger">
+        <div class="card card-stat h-100 p-3 border-0">
             <div class="d-flex justify-content-between align-items-center mb-1">
                 <span class="text-uppercase fw-semibold text-secondary small"><?= htmlspecialchars(__('card_linked_monthly_expenses')) ?></span>
                 <span class="icon-bubble icon-bubble-expense">
@@ -267,12 +362,12 @@ require_once __DIR__ . '/../includes/header.php';
                 -<?= htmlspecialchars(format_currency($totalAllLinkedFixedExpenses)) ?>
             </div>
             <div class="small text-muted mt-1">
-                <i class="bi bi-calendar-month me-1"></i><?= current_lang() === 'es' ? 'Gastos mensuales recurrentes asignados' : 'Monthly recurring expenses assigned' ?>
+                <i class="bi bi-calendar-month me-1"></i><?= htmlspecialchars(__('monthly_equivalent')) ?>
             </div>
         </div>
     </div>
     <div class="col-12 col-md-4">
-        <div class="card card-stat h-100 p-3 border-start border-4 border-success">
+        <div class="card card-stat h-100 p-3 border-0">
             <div class="d-flex justify-content-between align-items-center mb-1">
                 <span class="text-uppercase fw-semibold text-secondary small"><?= htmlspecialchars(__('card_fixed_income')) ?></span>
                 <span class="icon-bubble icon-bubble-income">
@@ -283,7 +378,7 @@ require_once __DIR__ . '/../includes/header.php';
                 +<?= htmlspecialchars(format_currency($totalAllLinkedFixedIncome)) ?>
             </div>
             <div class="small text-muted mt-1">
-                <i class="bi bi-calendar-check me-1"></i><?= current_lang() === 'es' ? 'Ingresos mensuales recurrentes asignados' : 'Monthly recurring income assigned' ?>
+                <i class="bi bi-calendar-check me-1"></i><?= htmlspecialchars(__('monthly_equivalent')) ?>
             </div>
         </div>
     </div>
@@ -309,31 +404,31 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="row g-4">
         <?php foreach ($accounts as $acc): ?>
             <?php 
-                $badgeTypeClass = 'bg-primary-subtle text-primary border-primary-subtle';
+                $badgeTypeClass = 'bg-primary-subtle text-primary';
                 $typeName = __('type_cuenta_bancaria');
                 if ($acc['tipo'] === 'tarjeta_debito') {
-                    $badgeTypeClass = 'bg-info-subtle text-info-emphasis border-info-subtle';
+                    $badgeTypeClass = 'bg-info-subtle text-info-emphasis';
                     $typeName = __('type_tarjeta_debito');
                 } elseif ($acc['tipo'] === 'tarjeta_credito') {
-                    $badgeTypeClass = 'bg-purple-subtle text-purple border-purple-subtle';
+                    $badgeTypeClass = 'bg-purple-subtle text-purple';
                     $typeName = __('type_tarjeta_credito');
                 } elseif ($acc['tipo'] === 'efectivo') {
-                    $badgeTypeClass = 'bg-success-subtle text-success border-success-subtle';
+                    $badgeTypeClass = 'bg-success-subtle text-success';
                     $typeName = __('type_efectivo');
                 }
             ?>
             <div class="col-12 col-md-6 col-lg-4">
-                <div class="card card-stat h-100 border-0 shadow-sm rounded-4 overflow-hidden d-flex flex-column">
+                <div class="card card-stat account-card h-100 border-0 shadow-sm rounded-4 overflow-hidden d-flex flex-column">
                     
                     <!-- Card Top Accent Bar -->
-                    <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+                    <div class="p-3 bg-light border-0 d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center gap-2">
                             <span class="d-inline-flex align-items-center justify-content-center rounded-3 text-white" style="width: 34px; height: 34px; background-color: <?= htmlspecialchars($acc['color']) ?>;">
                                 <i class="bi <?= htmlspecialchars($acc['icono']) ?>"></i>
                             </span>
                             <div>
                                 <h6 class="fw-bold mb-0 text-slate-800"><?= htmlspecialchars($acc['nombre']) ?></h6>
-                                <span class="badge border <?= $badgeTypeClass ?>" style="font-size: 0.68rem;">
+                                <span class="badge border-0 <?= $badgeTypeClass ?>" style="font-size: 0.68rem;">
                                     <?= htmlspecialchars($typeName) ?>
                                 </span>
                             </div>
@@ -345,6 +440,14 @@ require_once __DIR__ . '/../includes/header.php';
                                 <i class="bi bi-three-dots-vertical"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                                <?php if (count($accounts) >= 2): ?>
+                                    <li>
+                                        <button type="button" class="dropdown-item small d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#transferModal" data-source-id="<?= (int) $acc['id'] ?>">
+                                            <i class="bi bi-arrow-left-right text-primary"></i> <?= htmlspecialchars(__('btn_transfer')) ?>
+                                        </button>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                <?php endif; ?>
                                 <li>
                                     <button type="button" class="dropdown-item small d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#adjustModal" data-acc-id="<?= (int) $acc['id'] ?>" data-acc-name="<?= htmlspecialchars($acc['nombre'], ENT_QUOTES) ?>" data-op="add">
                                         <i class="bi bi-plus-circle text-success"></i> <?= htmlspecialchars(__('btn_add_balance')) ?>
@@ -383,7 +486,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
 
                         <!-- Linked Monthly Commitments Calculation -->
-                        <div class="p-2.5 bg-light rounded-3 border mb-3">
+                        <div class="p-2.5 rounded-3 mb-3 account-calc-box border-0">
                             <div class="d-flex justify-content-between align-items-center small text-secondary mb-1">
                                 <span><i class="bi bi-arrow-up-right me-1 text-danger"></i><?= htmlspecialchars(__('card_linked_monthly_expenses')) ?>:</span>
                                 <span class="fw-semibold text-danger">-<?= htmlspecialchars(format_currency((float) $acc['linked_expenses'])) ?></span>
@@ -394,7 +497,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <span class="fw-semibold text-success">+<?= htmlspecialchars(format_currency((float) $acc['linked_income'])) ?></span>
                                 </div>
                             <?php endif; ?>
-                            <hr class="my-1.5 opacity-25">
+                            <div class="account-divider my-2"></div>
                             <div class="d-flex justify-content-between align-items-center">
                                 <span class="small fw-semibold text-dark">
                                     <i class="bi bi-calculator me-1 text-primary"></i><?= htmlspecialchars(__('card_remaining_balance')) ?>:
@@ -420,14 +523,21 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php else: ?>
                                 <div class="d-flex flex-column gap-1">
                                     <?php foreach ($acc['linked_fixed_items'] as $item): ?>
-                                        <div class="d-flex justify-content-between align-items-center small bg-white px-2 py-1 rounded border">
-                                            <span class="text-truncate text-slate-700 d-inline-flex align-items-center gap-1" style="max-width: 160px;">
+                                        <?php 
+                                            $freq = $item['frecuencia'] ?? 'mensual';
+                                            $freqBadge = __('badge_frequency_monthly');
+                                            if ($freq === 'quincenal') $freqBadge = __('badge_frequency_biweekly');
+                                            elseif ($freq === 'anual') $freqBadge = __('badge_frequency_annual');
+                                        ?>
+                                        <div class="d-flex justify-content-between align-items-center small px-2.5 py-1.5 rounded account-item-row border-0">
+                                            <span class="text-truncate text-slate-700 d-inline-flex align-items-center gap-1" style="max-width: 170px;">
                                                 <?php if ($item['tipo'] === 'income'): ?>
                                                     <i class="bi bi-arrow-down-left text-success" title="<?= htmlspecialchars(__('type_income')) ?>"></i>
                                                 <?php else: ?>
                                                     <i class="bi bi-arrow-up-right text-danger" title="<?= htmlspecialchars(__('type_expense')) ?>"></i>
                                                 <?php endif; ?>
                                                 <span class="text-truncate"><?= htmlspecialchars($item['concepto']) ?></span>
+                                                <span class="badge bg-secondary-subtle text-secondary" style="font-size: 0.65rem;"><?= $freqBadge ?></span>
                                             </span>
                                             <?php if ($item['tipo'] === 'income'): ?>
                                                 <span class="fw-semibold text-success small">
@@ -447,7 +557,12 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
 
                     <!-- Card Quick Action Buttons -->
-                    <div class="card-footer bg-white border-top p-2.5 d-flex gap-2">
+                    <div class="card-footer bg-transparent border-0 p-2.5 d-flex gap-2">
+                        <?php if (count($accounts) >= 2): ?>
+                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill d-inline-flex align-items-center justify-content-center px-2.5" title="<?= htmlspecialchars(__('btn_transfer')) ?>" data-bs-toggle="modal" data-bs-target="#transferModal" data-source-id="<?= (int) $acc['id'] ?>">
+                                <i class="bi bi-arrow-left-right"></i>
+                            </button>
+                        <?php endif; ?>
                         <button type="button" class="btn btn-sm btn-outline-success flex-grow-1 rounded-pill d-inline-flex align-items-center justify-content-center gap-1" data-bs-toggle="modal" data-bs-target="#adjustModal" data-acc-id="<?= (int) $acc['id'] ?>" data-acc-name="<?= htmlspecialchars($acc['nombre'], ENT_QUOTES) ?>" data-op="add">
                             <i class="bi bi-plus-lg"></i>
                             <span><?= htmlspecialchars(__('btn_add_balance')) ?></span>
@@ -463,6 +578,121 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endforeach; ?>
     </div>
 <?php endif; ?>
+
+<!-- Modal: Transfer Between Accounts / Cards -->
+<div class="modal fade" id="transferModal" tabindex="-1" aria-labelledby="transferModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-3">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="icon-bubble icon-bubble-balance" style="width: 36px; height: 36px; font-size: 1.1rem;">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </span>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0 text-slate-800" id="transferModalLabel"><?= htmlspecialchars(__('form_transfer_title')) ?></h5>
+                        <small class="text-secondary"><?= htmlspecialchars(__('form_transfer_subtitle')) ?></small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <form method="POST" action="cuentas.php" novalidate id="transferForm">
+                <input type="hidden" name="action" value="transfer">
+
+                <div class="modal-body p-4">
+                    <!-- Source Account -->
+                    <div class="mb-3">
+                        <label for="transfer_source" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_source_account')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-secondary border-end-0">
+                                <i class="bi bi-box-arrow-up-right text-danger"></i>
+                            </span>
+                            <select class="form-select border-start-0 ps-0" id="transfer_source" name="source_account_id" required>
+                                <option value=""><?= htmlspecialchars(__('form_select_source')) ?></option>
+                                <?php foreach ($accounts as $a): ?>
+                                    <option value="<?= (int) $a['id'] ?>">
+                                        <?= htmlspecialchars($a['nombre']) ?> (<?= htmlspecialchars(format_currency((float) $a['saldo_actual'])) ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Swap Button -->
+                    <div class="text-center my-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="swapAccountsBtn" title="Invertir origen y destino" style="width: 34px; height: 34px;">
+                            <i class="bi bi-arrow-down-up"></i>
+                        </button>
+                    </div>
+
+                    <!-- Destination Account -->
+                    <div class="mb-3">
+                        <label for="transfer_dest" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_destination_account')) ?> <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-secondary border-end-0">
+                                <i class="bi bi-box-arrow-in-down-left text-success"></i>
+                            </span>
+                            <select class="form-select border-start-0 ps-0" id="transfer_dest" name="destination_account_id" required>
+                                <option value=""><?= htmlspecialchars(__('form_select_destination')) ?></option>
+                                <?php foreach ($accounts as $a): ?>
+                                    <option value="<?= (int) $a['id'] ?>">
+                                        <?= htmlspecialchars($a['nombre']) ?> (<?= htmlspecialchars(format_currency((float) $a['saldo_actual'])) ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Amount and Date -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-7">
+                            <label for="transfer_monto" class="form-label fw-semibold small text-secondary">
+                                <?= htmlspecialchars(__('form_field_amount')) ?> <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-secondary border-end-0 fw-bold">$</span>
+                                <input type="number" step="0.01" min="0.01" class="form-control border-start-0 ps-0" id="transfer_monto" name="monto" placeholder="0.00" required>
+                            </div>
+                        </div>
+                        <div class="col-5">
+                            <label for="transfer_fecha" class="form-label fw-semibold small text-secondary">
+                                <?= htmlspecialchars(__('form_field_date')) ?>
+                            </label>
+                            <input type="date" class="form-control" id="transfer_fecha" name="fecha" value="<?= date('Y-m-d') ?>" required>
+                        </div>
+                    </div>
+
+                    <!-- Optional Note / Description -->
+                    <div class="mb-3">
+                        <label for="transfer_concepto" class="form-label fw-semibold small text-secondary">
+                            <?= htmlspecialchars(__('form_field_concept')) ?>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-secondary border-end-0">
+                                <i class="bi bi-chat-text"></i>
+                            </span>
+                            <input type="text" class="form-control border-start-0 ps-0" id="transfer_concepto" name="concepto" maxlength="150" placeholder="Ej. Pago de tarjeta Visa, Recarga de saldo, Transferencia">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-top py-2 px-4">
+                    <button type="button" class="btn btn-sm btn-cancel px-3 rounded-pill" data-bs-dismiss="modal">
+                        <?= htmlspecialchars(__('btn_cancel')) ?>
+                    </button>
+                    <button type="submit" class="btn btn-sm btn-primary px-4 rounded-pill shadow-sm">
+                        <i class="bi bi-arrow-left-right me-1"></i>
+                        <?= htmlspecialchars(__('btn_make_transfer')) ?>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- Modal: New Account / Card -->
 <div class="modal fade" id="newAccountModal" tabindex="-1" aria-labelledby="newAccountModalLabel" aria-hidden="true">
@@ -520,14 +750,11 @@ require_once __DIR__ . '/../includes/header.php';
                             <span class="input-group-text bg-light text-secondary border-end-0 fw-bold">$</span>
                             <input type="number" step="0.01" min="0" class="form-control border-start-0 ps-0" id="acc_saldo_inicial" name="saldo_inicial" value="0.00" required>
                         </div>
-                        <div class="form-text small">
-                            <?= current_lang() === 'es' ? 'Puedes iniciar con saldo 0.00 o con el dinero que tengas actualmente en la cuenta.' : 'You can start with 0.00 or with your current available funds.' ?>
-                        </div>
                     </div>
                 </div>
 
                 <div class="modal-footer border-top py-2 px-4">
-                    <button type="button" class="btn btn-sm btn-light px-3 rounded-pill text-secondary" data-bs-dismiss="modal">
+                    <button type="button" class="btn btn-sm btn-cancel px-3 rounded-pill" data-bs-dismiss="modal">
                         <?= htmlspecialchars(__('btn_cancel')) ?>
                     </button>
                     <button type="submit" class="btn btn-sm btn-primary px-4 rounded-pill shadow-sm">
@@ -611,7 +838,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
 
                 <div class="modal-footer border-top py-2 px-4">
-                    <button type="button" class="btn btn-sm btn-light px-3 rounded-pill text-secondary" data-bs-dismiss="modal">
+                    <button type="button" class="btn btn-sm btn-cancel px-3 rounded-pill" data-bs-dismiss="modal">
                         <?= htmlspecialchars(__('btn_cancel')) ?>
                     </button>
                     <button type="submit" class="btn btn-sm btn-primary px-4 rounded-pill shadow-sm">
@@ -630,12 +857,13 @@ require_once __DIR__ . '/../includes/header.php';
     if (adjustModal) {
         adjustModal.addEventListener('show.bs.modal', function (event) {
             const button = event.relatedTarget;
+            if (!button) return;
             const accId = button.getAttribute('data-acc-id');
             const accName = button.getAttribute('data-acc-name');
             const op = button.getAttribute('data-op') || 'add';
 
-            adjustModal.querySelector('#adjust_cuenta_id').value = accId;
-            adjustModal.querySelector('#adjustModalAccountName').textContent = accName;
+            if (accId) adjustModal.querySelector('#adjust_cuenta_id').value = accId;
+            if (accName) adjustModal.querySelector('#adjustModalAccountName').textContent = accName;
 
             if (op === 'withdraw') {
                 adjustModal.querySelector('#op_withdraw').checked = true;
@@ -643,6 +871,34 @@ require_once __DIR__ . '/../includes/header.php';
                 adjustModal.querySelector('#op_add').checked = true;
             }
         });
+    }
+
+    // Wire up transfer modal with preselected source account
+    const transferModal = document.getElementById('transferModal');
+    if (transferModal) {
+        transferModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            if (!button) return;
+            const sourceId = button.getAttribute('data-source-id');
+            if (sourceId) {
+                const sourceSelect = transferModal.querySelector('#transfer_source');
+                if (sourceSelect) sourceSelect.value = sourceId;
+            }
+        });
+
+        // Swap origin and destination accounts
+        const swapBtn = document.getElementById('swapAccountsBtn');
+        if (swapBtn) {
+            swapBtn.addEventListener('click', function () {
+                const sourceEl = transferModal.querySelector('#transfer_source');
+                const destEl   = transferModal.querySelector('#transfer_dest');
+                if (sourceEl && destEl) {
+                    const temp = sourceEl.value;
+                    sourceEl.value = destEl.value;
+                    destEl.value = temp;
+                }
+            });
+        }
     }
 </script>
 

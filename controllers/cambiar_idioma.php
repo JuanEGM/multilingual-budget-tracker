@@ -1,19 +1,16 @@
 <?php
 /**
- * Language Switcher Controller (No URL Routes)
+ * Language Switcher Controller (Clean URLs & Multi-Language Support)
  * Gestor de Presupuesto Personal y Control de Gastos
  * 
+ * Supports: es (Spanish), en (English), fr (French), pt (Portuguese)
  * Switches the active language directly in PHP session without
  * polluting the browser URL address bar with query parameters.
  */
 
 declare(strict_types=1);
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-$supportedLangs = ['en', 'es'];
+require_once __DIR__ . '/../helpers/lang.php';
 
 // Read language choice from POST, JSON payload, or GET fallback
 $inputLang = '';
@@ -35,8 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $inputLang = trim((string) $_GET['lang']);
 }
 
-// Update session language if valid
-if (in_array($inputLang, $supportedLangs, true)) {
+// Update session language if valid in SUPPORTED_LANGS
+if (in_array($inputLang, SUPPORTED_LANGS, true)) {
     $_SESSION['lang'] = $inputLang;
 }
 
@@ -49,7 +46,7 @@ if ($isAjax) {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
         'success' => true,
-        'lang'    => $_SESSION['lang'] ?? 'en'
+        'lang'    => $_SESSION['lang'] ?? DEFAULT_LANG
     ]);
     exit;
 }
