@@ -17,6 +17,7 @@ $flashMessage = get_flash();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="app-base" content="<?= htmlspecialchars(app_base_path()) ?>">
     <title><?= htmlspecialchars($pageTitle ?? __('app_name')) ?> — <?= htmlspecialchars(__('app_subtitle')) ?></title>
     
     <!-- Script inmediato de precarga (Anti-FOUC): aplica tema y estado del sidebar antes del render -->

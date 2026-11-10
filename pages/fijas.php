@@ -528,12 +528,12 @@ require_once __DIR__ . '/../includes/header.php';
         <p class="text-secondary mb-0 small"><?= htmlspecialchars(__('recurring_subtitle')) ?></p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <a href="cuentas.php" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2 rounded-pill px-3 py-2 shadow-sm">
+        <a href="<?= htmlspecialchars(app_url('pages/cuentas.php')) ?>" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2 rounded-pill px-3 py-2 shadow-sm">
             <i class="bi bi-credit-card-2-front"></i>
             <span><?= htmlspecialchars(__('nav_accounts')) ?></span>
         </a>
         <?php if ($pendingCount > 0): ?>
-            <form method="POST" action="fijas.php" class="d-inline">
+            <form method="POST" action="<?= htmlspecialchars(app_url('pages/fijas.php')) ?>" class="d-inline">
                 <input type="hidden" name="action" value="apply_all">
                 <button type="submit" class="btn btn-outline-primary d-inline-flex align-items-center gap-2 rounded-pill px-3 py-2 shadow-sm">
                     <i class="bi bi-calendar-check"></i>
@@ -690,7 +690,7 @@ require_once __DIR__ . '/../includes/header.php';
                                                 <i class="bi bi-check-circle-fill me-1"></i><?= htmlspecialchars(__('badge_applied_this_month')) ?>
                                             </span>
                                         <?php elseif ((int)$item['activo'] === 1): ?>
-                                            <form method="POST" action="fijas.php" class="d-inline">
+                                            <form method="POST" action="<?= htmlspecialchars(app_url('pages/fijas.php')) ?>" class="d-inline">
                                                 <input type="hidden" name="action" value="apply_single">
                                                 <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
                                                 <button type="submit" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill small" style="font-size: 0.75rem;">
@@ -782,7 +782,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-center">
-                                    <form method="POST" action="fijas.php" class="d-inline">
+                                    <form method="POST" action="<?= htmlspecialchars(app_url('pages/fijas.php')) ?>" class="d-inline">
                                         <input type="hidden" name="action" value="toggle_status">
                                         <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
                                         <?php if ((int)$item['activo'] === 1): ?>
@@ -818,7 +818,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     >
                                         <i class="bi bi-pencil"></i>
                                     </button>
-                                    <form method="POST" action="fijas.php" class="d-inline" onsubmit="return confirm('<?= htmlspecialchars(__('delete_confirm'), ENT_QUOTES) ?>');">
+                                    <form method="POST" action="<?= htmlspecialchars(app_url('pages/fijas.php')) ?>" class="d-inline" onsubmit="return confirm('<?= htmlspecialchars(__('delete_confirm'), ENT_QUOTES) ?>');">
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
                                         <button type="submit" class="btn btn-sm btn-outline-danger border-0 rounded-circle" style="width: 32px; height: 32px;" title="<?= htmlspecialchars(__('btn_delete')) ?>">
@@ -852,7 +852,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <form method="POST" action="fijas.php" novalidate id="newFixedForm">
+            <form method="POST" action="<?= htmlspecialchars(app_url('pages/fijas.php')) ?>" novalidate id="newFixedForm">
                 <input type="hidden" name="action" value="create">
 
                 <div class="modal-body p-4">
@@ -1042,7 +1042,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <form method="POST" action="fijas.php" novalidate id="editFixedForm">
+            <form method="POST" action="<?= htmlspecialchars(app_url('pages/fijas.php')) ?>" novalidate id="editFixedForm">
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="id" id="edit_fixed_id" value="">
 
@@ -1202,99 +1202,110 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-    // Wire up frequency changes for New Fixed modal
-    const freqSelect = document.getElementById('fixed_frecuencia');
-    const biweeklyGroup = document.getElementById('biweeklyDayGroup');
-    const annualGroup = document.getElementById('annualMonthGroup');
+    (function () {
+        const initFixedPage = function () {
+            // Wire up frequency changes for New Fixed modal
+            const freqSelect = document.getElementById('fixed_frecuencia');
+            const biweeklyGroup = document.getElementById('biweeklyDayGroup');
+            const annualGroup = document.getElementById('annualMonthGroup');
 
-    const handleFreqChange = (val, biweeklyEl, annualEl) => {
-        if (!biweeklyEl || !annualEl) return;
-        if (val === 'quincenal') {
-            biweeklyEl.classList.remove('d-none');
-            annualEl.classList.add('d-none');
-        } else if (val === 'anual') {
-            biweeklyEl.classList.add('d-none');
-            annualEl.classList.remove('d-none');
-        } else {
-            biweeklyEl.classList.add('d-none');
-            annualEl.classList.add('d-none');
-        }
-    };
-
-    if (freqSelect) {
-        freqSelect.addEventListener('change', function () {
-            handleFreqChange(this.value, biweeklyGroup, annualGroup);
-        });
-    }
-
-    const editFreqSelect = document.getElementById('edit_fixed_frecuencia');
-    const editBiweeklyGroup = document.getElementById('editBiweeklyDayGroup');
-    const editAnnualGroup = document.getElementById('editAnnualMonthGroup');
-
-    if (editFreqSelect) {
-        editFreqSelect.addEventListener('change', function () {
-            handleFreqChange(this.value, editBiweeklyGroup, editAnnualGroup);
-        });
-    }
-
-    // Wire up Edit Fixed Transaction Modal with clicked row data
-    document.addEventListener('DOMContentLoaded', function () {
-        const editFixedModal = document.getElementById('editFixedModal');
-        if (editFixedModal) {
-            editFixedModal.addEventListener('show.bs.modal', function (event) {
-                const button = event.relatedTarget ? (event.relatedTarget.closest('[data-bs-toggle="modal"]') || event.relatedTarget) : null;
-                if (!button) return;
-
-                const id = button.getAttribute('data-id') || '';
-                const tipo = button.getAttribute('data-tipo') || 'expense';
-                const concepto = button.getAttribute('data-concepto') || '';
-                const monto = button.getAttribute('data-monto') || '0';
-                const frecuencia = button.getAttribute('data-frecuencia') || 'mensual';
-                const dia = button.getAttribute('data-dia') || '1';
-                const dia2 = button.getAttribute('data-dia2') || '15';
-                const mes = button.getAttribute('data-mes') || '1';
-                const metodo = button.getAttribute('data-metodo') || 'debito';
-                const cuenta = button.getAttribute('data-cuenta') || '0';
-                const categoria = button.getAttribute('data-categoria') || '';
-
-                const idEl = editFixedModal.querySelector('#edit_fixed_id');
-                const conceptoEl = editFixedModal.querySelector('#edit_fixed_concepto');
-                const montoEl = editFixedModal.querySelector('#edit_fixed_monto');
-                const freqEl = editFixedModal.querySelector('#edit_fixed_frecuencia');
-                const diaEl = editFixedModal.querySelector('#edit_fixed_dia_pago');
-                const dia2El = editFixedModal.querySelector('#edit_fixed_dia_pago_2');
-                const mesEl = editFixedModal.querySelector('#edit_fixed_mes_pago');
-                const catEl = editFixedModal.querySelector('#edit_fixed_categoria');
-                const metodoEl = editFixedModal.querySelector('#edit_fixed_metodo_pago');
-                const cuentaEl = editFixedModal.querySelector('#edit_fixed_cuenta_id');
-
-                if (idEl) idEl.value = id;
-                if (conceptoEl) conceptoEl.value = concepto;
-                if (montoEl) {
-                    const parsedMonto = parseFloat(monto);
-                    montoEl.value = isNaN(parsedMonto) ? '' : parsedMonto.toFixed(2);
-                }
-                if (freqEl) {
-                    freqEl.value = frecuencia;
-                    handleFreqChange(frecuencia, editBiweeklyGroup, editAnnualGroup);
-                }
-                if (diaEl) diaEl.value = dia;
-                if (dia2El) dia2El.value = dia2;
-                if (mesEl) mesEl.value = mes;
-                if (catEl) catEl.value = categoria;
-                if (metodoEl) metodoEl.value = metodo;
-                if (cuentaEl) cuentaEl.value = cuenta;
-
-                if (tipo === 'income') {
-                    const incRadio = editFixedModal.querySelector('#edit_fixed_type_income');
-                    if (incRadio) incRadio.checked = true;
+            const handleFreqChange = (val, biweeklyEl, annualEl) => {
+                if (!biweeklyEl || !annualEl) return;
+                if (val === 'quincenal') {
+                    biweeklyEl.classList.remove('d-none');
+                    annualEl.classList.add('d-none');
+                } else if (val === 'anual') {
+                    biweeklyEl.classList.add('d-none');
+                    annualEl.classList.remove('d-none');
                 } else {
-                    const expRadio = editFixedModal.querySelector('#edit_fixed_type_expense');
-                    if (expRadio) expRadio.checked = true;
+                    biweeklyEl.classList.add('d-none');
+                    annualEl.classList.add('d-none');
                 }
-            });
+            };
+
+            if (freqSelect && !freqSelect.dataset.bound) {
+                freqSelect.dataset.bound = 'true';
+                freqSelect.addEventListener('change', function () {
+                    handleFreqChange(this.value, biweeklyGroup, annualGroup);
+                });
+            }
+
+            const editFreqSelect = document.getElementById('edit_fixed_frecuencia');
+            const editBiweeklyGroup = document.getElementById('editBiweeklyDayGroup');
+            const editAnnualGroup = document.getElementById('editAnnualMonthGroup');
+
+            if (editFreqSelect && !editFreqSelect.dataset.bound) {
+                editFreqSelect.dataset.bound = 'true';
+                editFreqSelect.addEventListener('change', function () {
+                    handleFreqChange(this.value, editBiweeklyGroup, editAnnualGroup);
+                });
+            }
+
+            // Wire up Edit Fixed Transaction Modal with clicked row data
+            const editFixedModal = document.getElementById('editFixedModal');
+            if (editFixedModal && !editFixedModal.dataset.bound) {
+                editFixedModal.dataset.bound = 'true';
+                editFixedModal.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget ? (event.relatedTarget.closest('[data-bs-toggle="modal"]') || event.relatedTarget) : null;
+                    if (!button) return;
+
+                    const id = button.getAttribute('data-id') || '';
+                    const tipo = button.getAttribute('data-tipo') || 'expense';
+                    const concepto = button.getAttribute('data-concepto') || '';
+                    const monto = button.getAttribute('data-monto') || '0';
+                    const frecuencia = button.getAttribute('data-frecuencia') || 'mensual';
+                    const dia = button.getAttribute('data-dia') || '1';
+                    const dia2 = button.getAttribute('data-dia2') || '15';
+                    const mes = button.getAttribute('data-mes') || '1';
+                    const metodo = button.getAttribute('data-metodo') || 'debito';
+                    const cuenta = button.getAttribute('data-cuenta') || '0';
+                    const categoria = button.getAttribute('data-categoria') || '';
+
+                    const idEl = editFixedModal.querySelector('#edit_fixed_id');
+                    const conceptoEl = editFixedModal.querySelector('#edit_fixed_concepto');
+                    const montoEl = editFixedModal.querySelector('#edit_fixed_monto');
+                    const freqEl = editFixedModal.querySelector('#edit_fixed_frecuencia');
+                    const diaEl = editFixedModal.querySelector('#edit_fixed_dia_pago');
+                    const dia2El = editFixedModal.querySelector('#edit_fixed_dia_pago_2');
+                    const mesEl = editFixedModal.querySelector('#edit_fixed_mes_pago');
+                    const catEl = editFixedModal.querySelector('#edit_fixed_categoria');
+                    const metodoEl = editFixedModal.querySelector('#edit_fixed_metodo_pago');
+                    const cuentaEl = editFixedModal.querySelector('#edit_fixed_cuenta_id');
+
+                    if (idEl) idEl.value = id;
+                    if (conceptoEl) conceptoEl.value = concepto;
+                    if (montoEl) {
+                        const parsedMonto = parseFloat(monto);
+                        montoEl.value = isNaN(parsedMonto) ? '' : parsedMonto.toFixed(2);
+                    }
+                    if (freqEl) {
+                        freqEl.value = frecuencia;
+                        handleFreqChange(frecuencia, editBiweeklyGroup, editAnnualGroup);
+                    }
+                    if (diaEl) diaEl.value = dia;
+                    if (dia2El) dia2El.value = dia2;
+                    if (mesEl) mesEl.value = mes;
+                    if (catEl) catEl.value = categoria;
+                    if (metodoEl) metodoEl.value = metodo;
+                    if (cuentaEl) cuentaEl.value = cuenta;
+
+                    if (tipo === 'income') {
+                        const incRadio = editFixedModal.querySelector('#edit_fixed_type_income');
+                        if (incRadio) incRadio.checked = true;
+                    } else {
+                        const expRadio = editFixedModal.querySelector('#edit_fixed_type_expense');
+                        if (expRadio) expRadio.checked = true;
+                    }
+                });
+            }
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initFixedPage);
+        } else {
+            initFixedPage();
         }
-    });
+    })();
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

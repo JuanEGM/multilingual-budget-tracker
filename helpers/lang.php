@@ -154,16 +154,58 @@ function get_flash(): ?array
 }
 
 /**
- * Generates an appropriate relative URL to a resource from anywhere in the application
- * (Works cleanly both from root scripts like index.php and from subfolders like pages/ or controllers/)
+ * Detect the base web path of the project (e.g. '/' or '/Gestor Financiero/')
+ * Works seamlessly across PHP built-in server, XAMPP, Laragon, MAMP, and Docker.
+ * 
+ * @return string Root-relative base path ending with a slash
+ */
+function app_base_path(): string
+{
+    static $basePath = null;
+    if ($basePath !== null) {
+        return $basePath;
+    }
+
+    $projectRoot = str_replace('\\', '/', dirname(__DIR__));
+    $scriptFilename = str_replace('\\', '/', $_SERVER['SCRIPT_FILENAME'] ?? '');
+    $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+
+    // Calculate relative path of executing script within project folder
+    if (!empty($scriptFilename) && !empty($scriptName) && str_starts_with($scriptFilename, $projectRoot)) {
+        $relScript = ltrim(substr($scriptFilename, strlen($projectRoot)), '/');
+        if (!empty($relScript) && str_ends_with($scriptName, $relScript)) {
+            $base = substr($scriptName, 0, -strlen($relScript));
+            $basePath = '/' . trim($base, '/') . '/';
+            if ($basePath === '//') {
+                $basePath = '/';
+            }
+            return $basePath;
+        }
+    }
+
+    // Fallback: check if script is inside pages/ or controllers/
+    $dir = dirname($scriptName);
+    $lastDir = basename($dir);
+    if ($lastDir === 'pages' || $lastDir === 'controllers') {
+        $dir = dirname($dir);
+    }
+    $basePath = '/' . trim($dir, '/') . '/';
+    if ($basePath === '//') {
+        $basePath = '/';
+    }
+    return $basePath;
+}
+
+/**
+ * Generates an absolute root-relative URL to a resource from anywhere in the application
+ * (e.g. '/index.php', '/pages/cuentas.php' or '/Gestor Financiero/index.php')
+ * Ensures client-side SPA transitions never corrupt link depths or 404 on navigation.
  * 
  * @param string $path Target path relative to project root (e.g. 'pages/cuentas.php', 'index.php')
  * @return string
  */
 function app_url(string $path = ''): string
 {
-    $currentScript = $_SERVER['PHP_SELF'] ?? '/index.php';
-    $dirName = basename(dirname($currentScript));
-    $prefix = ($dirName === 'pages' || $dirName === 'controllers') ? '../' : '';
-    return $prefix . ltrim($path, '/');
+    $base = app_base_path();
+    return $base . ltrim($path, '/');
 }

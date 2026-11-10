@@ -273,12 +273,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const pageCache = new Map();
     let currentAbortController = null;
 
+    const normalizeUrlPath = (urlStr) => {
+        try {
+            const u = new URL(urlStr, window.location.href);
+            let path = u.pathname.replace(/\/index\.php$/i, '/');
+            if (!path.endsWith('/')) {
+                path += '/';
+            }
+            return u.origin + path + u.search;
+        } catch (e) {
+            return urlStr;
+        }
+    };
+
     const getScriptBase = (urlStr) => {
         try {
             const u = new URL(urlStr, window.location.href);
-            const parts = u.pathname.split('/').filter(Boolean);
-            const last = parts.length ? parts[parts.length - 1] : 'index.php';
-            return last === '' ? 'index.php' : last;
+            const path = u.pathname.replace(/\/+$/, '');
+            const filename = path.split('/').pop() || 'index.php';
+            if (!filename.endsWith('.php')) {
+                return 'index.php';
+            }
+            return filename;
         } catch (e) {
             return 'index.php';
         }
@@ -300,8 +316,9 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const targetUrl = new URL(url, window.location.href);
             if (targetUrl.origin !== window.location.origin) return;
-            if (!targetUrl.pathname.endsWith('.php') && targetUrl.pathname !== '/') return;
+            if (!targetUrl.pathname.endsWith('.php') && !targetUrl.pathname.endsWith('/')) return;
             if (targetUrl.pathname.includes('/controllers/')) return;
+            if (normalizeUrlPath(targetUrl.href) === normalizeUrlPath(window.location.href)) return;
             if (pageCache.has(targetUrl.href)) return;
 
             fetch(targetUrl.href, {
@@ -491,8 +508,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetUrl.pathname.includes('/controllers/')) return;
         if (targetUrl.pathname.match(/\.(bat|sql|zip|pdf|png|jpg|jpeg|gif|svg)$/i)) return;
 
-        if (targetUrl.href === window.location.href) {
+        // Si es la misma página (ej. / vs /index.php), evitar recarga innecesaria
+        if (normalizeUrlPath(targetUrl.href) === normalizeUrlPath(window.location.href)) {
             e.preventDefault();
+            const vp = document.getElementById('appViewport');
+            if (vp) {
+                vp.scrollTo({ top: 0, behavior: 'smooth' });
+            }
             return;
         }
 

@@ -294,7 +294,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 <?php endif; ?>
 
-                <form method="POST" action="agregar.php" novalidate id="txForm">
+                <form method="POST" action="<?= htmlspecialchars(app_url('pages/agregar.php')) ?>" novalidate id="txForm">
                     
                     <!-- Transaction Type (Expense, Income, Transfer) -->
                     <div class="mb-3">
@@ -558,57 +558,69 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const typeRadios = document.querySelectorAll('input[name="tipo"]');
-        const transferGroup = document.getElementById('transferAccountsGroup');
-        const regularGroup = document.getElementById('regularAccountGroup');
-        const recurringSection = document.getElementById('recurringSection');
-        const categoryGroup = document.getElementById('categoryGroup');
-        const regularAccSelect = document.getElementById('regular_cuenta_id');
-        const transferSourceSelect = document.getElementById('transfer_cuenta_origen');
+    (function () {
+        const initAgregarPage = function () {
+            const typeRadios = document.querySelectorAll('input[name="tipo"]');
+            const transferGroup = document.getElementById('transferAccountsGroup');
+            const regularGroup = document.getElementById('regularAccountGroup');
+            const recurringSection = document.getElementById('recurringSection');
+            const categoryGroup = document.getElementById('categoryGroup');
+            const regularAccSelect = document.getElementById('regular_cuenta_id');
+            const transferSourceSelect = document.getElementById('transfer_cuenta_origen');
 
-        const updateTypeUI = (type) => {
-            if (type === 'transfer') {
-                if (transferGroup) transferGroup.classList.remove('d-none');
-                if (regularGroup) regularGroup.classList.add('d-none');
-                if (recurringSection) recurringSection.classList.add('d-none');
-                if (categoryGroup) categoryGroup.classList.add('d-none');
-            } else {
-                if (transferGroup) transferGroup.classList.add('d-none');
-                if (regularGroup) regularGroup.classList.remove('d-none');
-                if (recurringSection) recurringSection.classList.remove('d-none');
-                if (categoryGroup) categoryGroup.classList.remove('d-none');
+            const updateTypeUI = (type) => {
+                if (type === 'transfer') {
+                    if (transferGroup) transferGroup.classList.remove('d-none');
+                    if (regularGroup) regularGroup.classList.add('d-none');
+                    if (recurringSection) recurringSection.classList.add('d-none');
+                    if (categoryGroup) categoryGroup.classList.add('d-none');
+                } else {
+                    if (transferGroup) transferGroup.classList.add('d-none');
+                    if (regularGroup) regularGroup.classList.remove('d-none');
+                    if (recurringSection) recurringSection.classList.remove('d-none');
+                    if (categoryGroup) categoryGroup.classList.remove('d-none');
+                }
+            };
+
+            typeRadios.forEach(radio => {
+                if (radio.dataset.bound) return;
+                radio.dataset.bound = 'true';
+                radio.addEventListener('change', function () {
+                    updateTypeUI(this.value);
+                });
+            });
+
+            // Sync regular account selection with transfer source if switched
+            if (regularAccSelect && transferSourceSelect && !regularAccSelect.dataset.bound) {
+                regularAccSelect.dataset.bound = 'true';
+                regularAccSelect.addEventListener('change', function () {
+                    if (this.value) {
+                        transferSourceSelect.value = this.value;
+                    }
+                });
+            }
+
+            // Toggle frequency picker inside recurring switch
+            const recurringSwitch = document.getElementById('es_recurrente');
+            const freqPicker = document.getElementById('recurringFreqPicker');
+            if (recurringSwitch && freqPicker && !recurringSwitch.dataset.bound) {
+                recurringSwitch.dataset.bound = 'true';
+                recurringSwitch.addEventListener('change', function () {
+                    if (this.checked) {
+                        freqPicker.classList.remove('d-none');
+                    } else {
+                        freqPicker.classList.add('d-none');
+                    }
+                });
             }
         };
 
-        typeRadios.forEach(radio => {
-            radio.addEventListener('change', function () {
-                updateTypeUI(this.value);
-            });
-        });
-
-        // Sync regular account selection with transfer source if switched
-        if (regularAccSelect && transferSourceSelect) {
-            regularAccSelect.addEventListener('change', function () {
-                if (this.value) {
-                    transferSourceSelect.value = this.value;
-                }
-            });
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initAgregarPage);
+        } else {
+            initAgregarPage();
         }
-
-        // Toggle frequency picker inside recurring switch
-        const recurringSwitch = document.getElementById('es_recurrente');
-        const freqPicker = document.getElementById('recurringFreqPicker');
-        if (recurringSwitch && freqPicker) {
-            recurringSwitch.addEventListener('change', function () {
-                if (this.checked) {
-                    freqPicker.classList.remove('d-none');
-                } else {
-                    freqPicker.classList.add('d-none');
-                }
-            });
-        }
-    });
+    })();
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

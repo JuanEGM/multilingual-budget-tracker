@@ -460,7 +460,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <form method="POST" action="cuentas.php" onsubmit="return confirm('<?= htmlspecialchars(__('delete_confirm'), ENT_QUOTES) ?>');">
+                                    <form method="POST" action="<?= htmlspecialchars(app_url('pages/cuentas.php')) ?>" onsubmit="return confirm('<?= htmlspecialchars(__('delete_confirm'), ENT_QUOTES) ?>');">
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="id" value="<?= (int) $acc['id'] ?>">
                                         <button type="submit" class="dropdown-item small text-danger d-flex align-items-center gap-2">
@@ -596,7 +596,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <form method="POST" action="cuentas.php" novalidate id="transferForm">
+            <form method="POST" action="<?= htmlspecialchars(app_url('pages/cuentas.php')) ?>" novalidate id="transferForm">
                 <input type="hidden" name="action" value="transfer">
 
                 <div class="modal-body p-4">
@@ -711,7 +711,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <form method="POST" action="cuentas.php" novalidate>
+            <form method="POST" action="<?= htmlspecialchars(app_url('pages/cuentas.php')) ?>" novalidate>
                 <input type="hidden" name="action" value="create">
 
                 <div class="modal-body p-4">
@@ -784,7 +784,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <form method="POST" action="cuentas.php" novalidate>
+            <form method="POST" action="<?= htmlspecialchars(app_url('pages/cuentas.php')) ?>" novalidate>
                 <input type="hidden" name="action" value="adjust_balance">
                 <input type="hidden" name="cuenta_id" id="adjust_cuenta_id" value="">
 
@@ -852,54 +852,67 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-    // Wire up adjust balance modal with dynamic account and operation
-    const adjustModal = document.getElementById('adjustModal');
-    if (adjustModal) {
-        adjustModal.addEventListener('show.bs.modal', function (event) {
-            const button = event.relatedTarget;
-            if (!button) return;
-            const accId = button.getAttribute('data-acc-id');
-            const accName = button.getAttribute('data-acc-name');
-            const op = button.getAttribute('data-op') || 'add';
+    (function () {
+        const initCuentasPage = function () {
+            // Wire up adjust balance modal with dynamic account and operation
+            const adjustModal = document.getElementById('adjustModal');
+            if (adjustModal && !adjustModal.dataset.bound) {
+                adjustModal.dataset.bound = 'true';
+                adjustModal.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget;
+                    if (!button) return;
+                    const accId = button.getAttribute('data-acc-id');
+                    const accName = button.getAttribute('data-acc-name');
+                    const op = button.getAttribute('data-op') || 'add';
 
-            if (accId) adjustModal.querySelector('#adjust_cuenta_id').value = accId;
-            if (accName) adjustModal.querySelector('#adjustModalAccountName').textContent = accName;
+                    if (accId) adjustModal.querySelector('#adjust_cuenta_id').value = accId;
+                    if (accName) adjustModal.querySelector('#adjustModalAccountName').textContent = accName;
 
-            if (op === 'withdraw') {
-                adjustModal.querySelector('#op_withdraw').checked = true;
-            } else {
-                adjustModal.querySelector('#op_add').checked = true;
+                    if (op === 'withdraw') {
+                        adjustModal.querySelector('#op_withdraw').checked = true;
+                    } else {
+                        adjustModal.querySelector('#op_add').checked = true;
+                    }
+                });
             }
-        });
-    }
 
-    // Wire up transfer modal with preselected source account
-    const transferModal = document.getElementById('transferModal');
-    if (transferModal) {
-        transferModal.addEventListener('show.bs.modal', function (event) {
-            const button = event.relatedTarget;
-            if (!button) return;
-            const sourceId = button.getAttribute('data-source-id');
-            if (sourceId) {
-                const sourceSelect = transferModal.querySelector('#transfer_source');
-                if (sourceSelect) sourceSelect.value = sourceId;
-            }
-        });
+            // Wire up transfer modal with preselected source account
+            const transferModal = document.getElementById('transferModal');
+            if (transferModal && !transferModal.dataset.bound) {
+                transferModal.dataset.bound = 'true';
+                transferModal.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget;
+                    if (!button) return;
+                    const sourceId = button.getAttribute('data-source-id');
+                    if (sourceId) {
+                        const sourceSelect = transferModal.querySelector('#transfer_source');
+                        if (sourceSelect) sourceSelect.value = sourceId;
+                    }
+                });
 
-        // Swap origin and destination accounts
-        const swapBtn = document.getElementById('swapAccountsBtn');
-        if (swapBtn) {
-            swapBtn.addEventListener('click', function () {
-                const sourceEl = transferModal.querySelector('#transfer_source');
-                const destEl   = transferModal.querySelector('#transfer_dest');
-                if (sourceEl && destEl) {
-                    const temp = sourceEl.value;
-                    sourceEl.value = destEl.value;
-                    destEl.value = temp;
+                // Swap origin and destination accounts
+                const swapBtn = document.getElementById('swapAccountsBtn');
+                if (swapBtn && !swapBtn.dataset.bound) {
+                    swapBtn.dataset.bound = 'true';
+                    swapBtn.addEventListener('click', function () {
+                        const sourceEl = transferModal.querySelector('#transfer_source');
+                        const destEl   = transferModal.querySelector('#transfer_dest');
+                        if (sourceEl && destEl) {
+                            const temp = sourceEl.value;
+                            sourceEl.value = destEl.value;
+                            destEl.value = temp;
+                        }
+                    });
                 }
-            });
+            }
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initCuentasPage);
+        } else {
+            initCuentasPage();
         }
-    }
+    })();
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
